@@ -1,0 +1,14 @@
+services:
+  api:
+    build: .
+    restart: unless-stopped
+    environment:
+      PORT: 3030
+      DATA_FILE: /app/storage/data.json
+    ports:
+      - "127.0.0.1:3030:3030"
+    volumes:
+      - keluarga_data:/app/storage
+
+volumes:
+  keluarga_data:

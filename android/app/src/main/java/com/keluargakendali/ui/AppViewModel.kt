@@ -1,0 +1,157 @@
+package com.keluargakendali.ui
+
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import com.keluargakendali.data.ApiException
+import com.keluargakendali.data.FamilyDto
+import com.keluargakendali.data.PactioApi
+import com.keluargakendali.data.SecureTokenStore
+import com.keluargakendali.data.TaskDto
+import com.keluargakendali.data.UserDto
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+
+data class UiState(
+    val loading: Boolean = false,
+    val errorMessage: String? = null,
+    val infoMessage: String? = null,
+    val token: String? = null,
+    val currentUser: UserDto? = null,
+    val family: FamilyDto? = null,
+    val children: List<UserDto> = emptyList(),
+    val tasks: List<TaskDto> = emptyList(),
+    val balanceMinutes: Int = 0,
+    val approvedTaskCount: Int = 0
+)
+
+class AppViewModel(application: Application) : AndroidViewModel(application) {
+
+    private val tokenStore = SecureTokenStore(application)
+
+    private val _state = MutableStateFlow(UiState())
+    val state: StateFlow<UiState> = _state.asStateFlow()
+
+    init {
+        restoreSession()
+    }
+
+    private fun restoreSession() {
+        val token = tokenStore.loadToken()
+        val user = tokenStore.loadUser()
+        if (token != null && user != null) {
+            _state.update { it.copy(token = token, currentUser = user) }
+            refreshAll()
+        }
+    }
+
+    fun registerParent(familyName: String, name: String, email: String, password: String) = launchGuarded {
+        val result = PactioApi.registerParent(familyName, name, email, password)
+        onAuthSuccess(result.token, result.user)
+    }
+
+    fun loginParent(email: String, password: String) = launchGuarded {
+        val result = PactioApi.loginParent(email, password)
+        onAuthSuccess(result.token, result.user)
+    }
+
+    fun loginChild(familyCode: String, pin: String) = launchGuarded {
+        val result = PactioApi.loginChild(familyCode, pin)
+        onAuthSuccess(result.token, result.user)
+    }
+
+    fun logout() {
+        tokenStore.clear()
+        _state.value = UiState()
+    }
+
+    fun addChild(name: String, pin: String) = requireToken { token ->
+        PactioApi.addChild(token, name, pin)
+        loadFamily(token)
+    }
+
+    fun createTask(childId: String, title: String, description: String, rewardMinutes: Int) = requireToken { token ->
+        PactioApi.createTask(token, childId, title, description, rewardMinutes)
+        loadTasks(token)
+    }
+
+    fun submitTask(taskId: String, evidence: String) = requireToken { token ->
+        PactioApi.submitTask(token, taskId, evidence)
+        loadTasks(token)
+        loadBalanceIfChild(token)
+    }
+
+    fun decideTask(taskId: String, approved: Boolean, note: String) = requireToken { token ->
+        PactioApi.decideTask(token, taskId, approved, note)
+        loadTasks(token)
+    }
+
+    fun refresh() = requireToken { token ->
+        loadFamily(token)
+        loadTasks(token)
+        loadBalanceIfChild(token)
+    }
+
+    fun dismissMessages() {
+        _state.update { it.copy(errorMessage = null, infoMessage = null) }
+    }
+
+    private fun onAuthSuccess(token: String, user: UserDto) {
+        tokenStore.save(token, user)
+        _state.update { it.copy(token = token, currentUser = user) }
+        refreshAll()
+    }
+
+    private fun refreshAll() {
+        val token = _state.value.token ?: return
+        viewModelScope.launch {
+            loadFamily(token)
+            loadTasks(token)
+            loadBalanceIfChild(token)
+        }
+    }
+
+    private suspend fun loadFamily(token: String) {
+        val result = PactioApi.getFamily(token)
+        _state.update { it.copy(family = result.family, children = result.children) }
+    }
+
+    private suspend fun loadTasks(token: String) {
+        val tasks = PactioApi.getTasks(token)
+        _state.update { it.copy(tasks = tasks) }
+    }
+
+    private suspend fun loadBalanceIfChild(token: String) {
+        if (_state.value.currentUser?.role != "child") return
+        val balance = PactioApi.getAccessBalance(token)
+        _state.update { it.copy(balanceMinutes = balance.minutes, approvedTaskCount = balance.approvedTaskCount) }
+    }
+
+    /** Menjalankan aksi yang butuh token; tidak melakukan apa pun kalau belum login. */
+    private fun requireToken(block: suspend (String) -> Unit) = launchGuarded {
+        val token = _state.value.token ?: return@launchGuarded
+        block(token)
+    }
+
+    private fun launchGuarded(block: suspend () -> Unit) {
+        viewModelScope.launch {
+            _state.update { it.copy(loading = true, errorMessage = null) }
+            try {
+                block()
+            } catch (error: ApiException.Unauthorized) {
+                // Token ditolak backend (kedaluwarsa/tidak valid) -> paksa kembali ke layar login.
+                tokenStore.clear()
+                _state.value = UiState(errorMessage = "Sesi berakhir, silakan masuk kembali.")
+                return@launch
+            } catch (error: ApiException) {
+                _state.update { it.copy(errorMessage = error.message ?: "Terjadi kesalahan.") }
+            } catch (error: Exception) {
+                _state.update { it.copy(errorMessage = "Tidak dapat terhubung ke server. Periksa koneksi internet.") }
+            }
+            _state.update { it.copy(loading = false) }
+        }
+    }
+}

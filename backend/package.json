@@ -1,0 +1,13 @@
+{
+  "name": "kendali-keluarga-api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MVP API lokal untuk tugas dan hadiah akses keluarga",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/api.test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
