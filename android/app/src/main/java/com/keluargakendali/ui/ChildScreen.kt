@@ -218,54 +218,44 @@ private fun Bitmap.toJpegDataUri(): String {
 }
 
 /**
- * Menyalakan/mematikan DeviceLockService mengikuti status kedua izin khusus, dan
- * menampilkan kartu ajakan izin kalau salah satunya belum diberikan. Izin dicek ulang
- * tiap 2 detik (bukan lewat lifecycle observer) supaya kembali dari halaman Pengaturan
- * langsung terdeteksi tanpa dependency lifecycle-compose tambahan.
+ * Menyalakan/mematikan DeviceLockService mengikuti status izin "Tampil di atas aplikasi
+ * lain", dan menampilkan kartu ajakan izin kalau belum diberikan. Izin dicek ulang tiap 2
+ * detik (bukan lewat lifecycle observer) supaya kembali dari halaman Pengaturan langsung
+ * terdeteksi tanpa dependency lifecycle-compose tambahan.
  */
 @Composable
 private fun DeviceLockController() {
     val context = LocalContext.current
-    var hasUsageAccess by remember { mutableStateOf(DeviceLockPermissions.hasUsageAccess(context)) }
     var hasOverlay by remember { mutableStateOf(DeviceLockPermissions.hasOverlayPermission(context)) }
 
     LaunchedEffect(Unit) {
         while (true) {
-            hasUsageAccess = DeviceLockPermissions.hasUsageAccess(context)
             hasOverlay = DeviceLockPermissions.hasOverlayPermission(context)
             delay(2000)
         }
     }
 
-    LaunchedEffect(hasUsageAccess, hasOverlay) {
+    LaunchedEffect(hasOverlay) {
         val intent = Intent(context, DeviceLockService::class.java)
-        if (hasUsageAccess && hasOverlay) context.startForegroundService(intent) else context.stopService(intent)
+        if (hasOverlay) context.startForegroundService(intent) else context.stopService(intent)
     }
     DisposableEffect(Unit) {
         onDispose { context.stopService(Intent(context, DeviceLockService::class.java)) }
     }
 
-    if (!hasUsageAccess || !hasOverlay) {
+    if (!hasOverlay) {
         Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Kontrol Perangkat", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
                 Text(
-                    "Supaya orang tua bisa mengunci akses aplikasi lain kalau perlu, izinkan dua akses berikut lewat Pengaturan HP. Bisa dicabut kapan saja.",
+                    "Supaya orang tua bisa mengunci akses aplikasi lain kalau perlu, izinkan akses berikut lewat Pengaturan HP. Bisa dicabut kapan saja.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSecondaryContainer
                 )
-                if (!hasUsageAccess) {
-                    Button(
-                        onClick = { context.startActivity(DeviceLockPermissions.usageAccessSettingsIntent()) },
-                        modifier = Modifier.fillMaxWidth()
-                    ) { Text("Izinkan Akses Penggunaan") }
-                }
-                if (!hasOverlay) {
-                    Button(
-                        onClick = { context.startActivity(DeviceLockPermissions.overlaySettingsIntent(context)) },
-                        modifier = Modifier.fillMaxWidth()
-                    ) { Text("Izinkan Tampil di Atas Aplikasi Lain") }
-                }
+                Button(
+                    onClick = { context.startActivity(DeviceLockPermissions.overlaySettingsIntent(context)) },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Izinkan Tampil di Atas Aplikasi Lain") }
             }
         }
         Spacer(Modifier.height(16.dp))

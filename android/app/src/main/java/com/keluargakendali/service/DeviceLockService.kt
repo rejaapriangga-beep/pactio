@@ -4,8 +4,6 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
-import android.app.usage.UsageEvents
-import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
@@ -33,8 +31,8 @@ import kotlinx.coroutines.launch
  * Menegakkan "Mode Kunci" yang dinyalakan orang tua: kalau aktif dan aplikasi yang sedang
  * dibuka BUKAN Pactio, tampilkan layar penuh "Terkunci" di atasnya.
  *
- * Cuma jalan kalau kedua izin khusus (Usage Access + Display over other apps) sudah
- * diberikan MANUAL oleh pengguna lewat Pengaturan - lihat DeviceLockPermissions &
+ * Cuma jalan kalau izin khusus "Tampil di atas aplikasi lain" (Display over other apps)
+ * sudah diberikan MANUAL oleh pengguna lewat Pengaturan - lihat DeviceLockPermissions &
  * ChildScreen. Notifikasi persisten di bawah ini sengaja SELALU tampil selama service
  * jalan, supaya transparan (anak/siapa pun yang pegang HP tahu persis kalau ini aktif).
  * TIDAK memakai accessibility service, root, atau device admin/owner.
@@ -104,22 +102,15 @@ class DeviceLockService : Service() {
         }
     }
 
-    /** Dicek lewat UsageStatsManager (butuh izin Usage Access) - bukan accessibility service. */
+    /**
+     * Dicek lewat callback lifecycle Activity resmi (AppForegroundState/PactioApplication),
+     * bukan UsageStatsManager - lihat catatan di AppForegroundState kenapa itu dulunya
+     * bikin overlay nyangkut menutupi Pactio sendiri di beberapa perangkat.
+     */
     private fun isPactioForeground(): Boolean {
-        val usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager ?: return false
-        val end = System.currentTimeMillis()
-        val begin = end - USAGE_LOOKBACK_MS
-        val events = usageStatsManager.queryEvents(begin, end) ?: return false
-        var lastForegroundPackage: String? = null
-        val event = UsageEvents.Event()
-        while (events.hasNextEvent()) {
-            events.getNextEvent(event)
-            if (event.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND) {
-                lastForegroundPackage = event.packageName
-            }
-        }
-        Log.d(TAG, "isPactioForeground: lastForegroundPackage=$lastForegroundPackage (self=$packageName)")
-        return lastForegroundPackage == packageName
+        val foreground = AppForegroundState.isForeground
+        Log.d(TAG, "isPactioForeground: $foreground")
+        return foreground
     }
 
     private fun showOverlay() {
@@ -204,6 +195,5 @@ class DeviceLockService : Service() {
         private const val CHANNEL_ID = "device_lock"
         private const val STATUS_POLL_MS = 15_000L
         private const val FOREGROUND_POLL_MS = 1_000L
-        private const val USAGE_LOOKBACK_MS = 10_000L
     }
 }

@@ -6,19 +6,18 @@
     <uses-permission android:name="android.permission.INTERNET" />
 
     <!--
-        Izin khusus untuk fitur Kontrol Perangkat (lihat DeviceLockService). Ketiganya
-        TIDAK memicu dialog izin otomatis - PACKAGE_USAGE_STATS dan SYSTEM_ALERT_WINDOW
-        wajib diberikan MANUAL oleh pengguna lewat halaman Pengaturan sistem (transparan,
-        terlihat di "Akses khusus", bisa dicabut kapan saja). Bukan accessibility service,
-        bukan root, bukan device admin/owner - sesuai batasan PRD.
+        Izin khusus untuk fitur Kontrol Perangkat (lihat DeviceLockService). SYSTEM_ALERT_WINDOW
+        TIDAK memicu dialog izin otomatis - wajib diberikan MANUAL oleh pengguna lewat halaman
+        Pengaturan sistem (transparan, terlihat di "Akses khusus", bisa dicabut kapan saja).
+        Bukan accessibility service, bukan root, bukan device admin/owner - sesuai batasan PRD.
     -->
-    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
+        android:name=".PactioApplication"
         android:allowBackup="true"
         android:label="Pactio"
         android:supportsRtl="true"
