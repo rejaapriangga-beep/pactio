@@ -1,0 +1,54 @@
+name: Android Build
+
+# Build APK debug otomatis di server GitHub — tidak perlu Android SDK di laptop.
+# Hasilnya bisa diunduh dari tab "Actions" pada run yang bersangkutan, bagian "Artifacts".
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "android/**"
+      - ".github/workflows/android-build.yml"
+  workflow_dispatch: {}
+
+jobs:
+  build-debug-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install SDK platform & build-tools yang dibutuhkan
+        run: |
+          set -e
+          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+          # compileSdk project ini 37 — kalau paket ini belum dipublikasikan oleh
+          # Google, langkah ini akan gagal dan build berikutnya ikut gagal.
+          # Solusinya: turunkan compileSdk ke 36 di android/app/build.gradle.kts.
+          sdkmanager "platforms;android-37"
+
+      - name: Grant execute permission for gradlew
+        working-directory: android
+        run: chmod +x gradlew
+
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: pactio-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30

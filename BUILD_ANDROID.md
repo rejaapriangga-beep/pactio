@@ -47,7 +47,31 @@ tapi karena sandbox ini tidak punya akses ke server Google.
    android/app/build/outputs/apk/debug/app-debug.apk
    ```
 
-## Cara build lewat command line saja (tanpa Android Studio)
+## Cara build tanpa Android Studio DAN tanpa install SDK apa pun — GitHub Actions (paling mudah)
+
+Repo ini punya workflow otomatis di `.github/workflows/android-build.yml`. Setiap kali ada
+push ke branch `main` yang menyentuh folder `android/`, GitHub akan membangun APK debug di
+servernya sendiri (bukan di laptop kamu, jadi tidak perlu install SDK/JDK apa pun).
+
+**Cara pakai:**
+
+1. Buka repo di browser: https://github.com/rejaapriangga-beep/pactio/actions
+2. Klik workflow **"Android Build"** di daftar sebelah kiri.
+3. Kalau belum pernah jalan otomatis (misal belum ada perubahan baru di `android/`), klik
+   tombol **"Run workflow"** di kanan atas → pilih branch `main` → **Run workflow**.
+4. Tunggu sampai selesai (ikon kuning berputar → hijau ✅, biasanya beberapa menit).
+5. Klik run yang sudah selesai → scroll ke bagian **Artifacts** di bawah → unduh
+   **`pactio-debug-apk`** (berupa file `.zip` berisi `app-debug.apk`).
+6. Extract zip-nya, pindahkan `app-debug.apk` ke HP, install seperti biasa (aktifkan
+   **Instal aplikasi tidak dikenal** untuk aplikasi yang kamu pakai memindahkan file).
+
+> Catatan: `compileSdk` project ini di-set ke `37`. Kalau API level itu belum dipublikasikan
+> Google saat workflow jalan, langkah `sdkmanager "platforms;android-37"` akan gagal dan
+> build ikut gagal — lihat log run-nya di tab Actions. Solusinya: turunkan `compileSdk`
+> menjadi `36` di `android/app/build.gradle.kts`, commit, push, lalu workflow akan jalan
+> ulang otomatis.
+
+## Cara build lewat command line di laptop sendiri (tanpa Android Studio)
 
 Perlu Android SDK command-line tools terpasang dan `ANDROID_HOME` diarahkan ke situ (lihat
 [panduan resmi](https://developer.android.com/tools/sdkmanager)), lalu jalankan perintah
