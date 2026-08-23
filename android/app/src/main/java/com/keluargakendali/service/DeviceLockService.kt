@@ -95,8 +95,12 @@ class DeviceLockService : Service() {
             }
 
             val foreground = isPactioForeground()
-            Log.d(TAG, "poll: locked=$locked pactioForeground=$foreground overlayShown=${overlayView != null}")
-            if (locked && !foreground) showOverlay() else removeOverlay()
+            // LockStatusHint: kalau anak baru saja "Gunakan Waktu" di layar ini sendiri,
+            // ini sudah tahu duluan tanpa menunggu poll /lock-status berikutnya - lihat
+            // catatan di LockStatusHint kenapa ini perlu (bukan cuma andalkan `locked`).
+            val effectivelyLocked = locked && !LockStatusHint.isActive
+            Log.d(TAG, "poll: locked=$locked hintActive=${LockStatusHint.isActive} pactioForeground=$foreground overlayShown=${overlayView != null}")
+            if (effectivelyLocked && !foreground) showOverlay() else removeOverlay()
 
             delay(if (locked) FOREGROUND_POLL_MS else STATUS_POLL_MS)
         }

@@ -9,6 +9,7 @@ import com.keluargakendali.data.PactioApi
 import com.keluargakendali.data.SecureTokenStore
 import com.keluargakendali.data.TaskDto
 import com.keluargakendali.data.UserDto
+import com.keluargakendali.service.LockStatusHint
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -146,6 +147,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun redeemAccessBalance(minutes: Int) = requireToken { token ->
         val balance = PactioApi.redeemAccessBalance(token, minutes)
+        // Beri tahu DeviceLockService SEKARANG JUGA (bukan menunggu siklus poll statusnya
+        // sendiri yang bisa sampai ~15 detik) - lihat catatan di LockStatusHint.
+        LockStatusHint.setUnlockUntil(balance.unlockUntil)
         _state.update {
             it.copy(
                 balanceMinutes = balance.minutes,
