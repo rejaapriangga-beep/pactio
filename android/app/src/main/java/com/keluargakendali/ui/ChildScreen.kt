@@ -1,5 +1,6 @@
 package com.keluargakendali.ui
 
+import android.content.Intent
 import android.graphics.Bitmap
 import android.util.Base64
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -31,6 +32,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,9 +43,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.keluargakendali.data.TaskDto
+import com.keluargakendali.service.DeviceLockPermissions
+import com.keluargakendali.service.DeviceLockService
+import kotlinx.coroutines.delay
 import java.io.ByteArrayOutputStream
 
 @Composable
@@ -58,6 +65,8 @@ fun ChildScreen(
             ErrorBanner(it, onDismissMessage)
             Spacer(Modifier.height(12.dp))
         }
+
+        DeviceLockController()
 
         Card(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary),
@@ -206,4 +215,59 @@ private fun Bitmap.toJpegDataUri(): String {
     compress(Bitmap.CompressFormat.JPEG, 80, output)
     val base64 = Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)
     return "data:image/jpeg;base64,$base64"
+}
+
+/**
+ * Menyalakan/mematikan DeviceLockService mengikuti status kedua izin khusus, dan
+ * menampilkan kartu ajakan izin kalau salah satunya belum diberikan. Izin dicek ulang
+ * tiap 2 detik (bukan lewat lifecycle observer) supaya kembali dari halaman Pengaturan
+ * langsung terdeteksi tanpa dependency lifecycle-compose tambahan.
+ */
+@Composable
+private fun DeviceLockController() {
+    val context = LocalContext.current
+    var hasUsageAccess by remember { mutableStateOf(DeviceLockPermissions.hasUsageAccess(context)) }
+    var hasOverlay by remember { mutableStateOf(DeviceLockPermissions.hasOverlayPermission(context)) }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            hasUsageAccess = DeviceLockPermissions.hasUsageAccess(context)
+            hasOverlay = DeviceLockPermissions.hasOverlayPermission(context)
+            delay(2000)
+        }
+    }
+
+    LaunchedEffect(hasUsageAccess, hasOverlay) {
+        val intent = Intent(context, DeviceLockService::class.java)
+        if (hasUsageAccess && hasOverlay) context.startForegroundService(intent) else context.stopService(intent)
+    }
+    DisposableEffect(Unit) {
+        onDispose { context.stopService(Intent(context, DeviceLockService::class.java)) }
+    }
+
+    if (!hasUsageAccess || !hasOverlay) {
+        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Kontrol Perangkat", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                Text(
+                    "Supaya orang tua bisa mengunci akses aplikasi lain kalau perlu, izinkan dua akses berikut lewat Pengaturan HP. Bisa dicabut kapan saja.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+                if (!hasUsageAccess) {
+                    Button(
+                        onClick = { context.startActivity(DeviceLockPermissions.usageAccessSettingsIntent()) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Izinkan Akses Penggunaan") }
+                }
+                if (!hasOverlay) {
+                    Button(
+                        onClick = { context.startActivity(DeviceLockPermissions.overlaySettingsIntent(context)) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Izinkan Tampil di Atas Aplikasi Lain") }
+                }
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+    }
 }

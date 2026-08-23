@@ -89,6 +89,7 @@ private fun PactioApp() {
                         onAddChild = viewModel::addChild,
                         onCreateTask = viewModel::createTask,
                         onDecide = viewModel::decideTask,
+                        onSetLock = { childId, enabled -> viewModel.setChildLock(childId, enabled) },
                         onDismissMessage = viewModel::dismissMessages
                     )
 

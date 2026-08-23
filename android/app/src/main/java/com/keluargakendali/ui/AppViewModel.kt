@@ -104,6 +104,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _state.update { it.copy(infoMessage = if (approved) "Tugas disetujui." else "Tugas ditolak.") }
     }
 
+    fun setChildLock(childId: String, enabled: Boolean) = requireToken { token ->
+        PactioApi.setChildLock(token, childId, enabled)
+        loadFamily(token)
+        _state.update { it.copy(infoMessage = if (enabled) "Perangkat anak dikunci." else "Kunci perangkat dibuka.") }
+    }
+
     fun refresh() = requireToken { token ->
         loadFamily(token)
         loadTasks(token)

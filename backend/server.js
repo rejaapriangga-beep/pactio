@@ -49,7 +49,14 @@ function verify(secret, stored) {
 }
 
 function publicUser(user) {
-  return { id: user.id, role: user.role, name: user.name, familyId: user.familyId };
+  return {
+    id: user.id,
+    role: user.role,
+    name: user.name,
+    familyId: user.familyId,
+    // Hanya relevan untuk anak - field ini undefined (dihilangkan JSON.stringify) untuk orang tua.
+    lockModeEnabled: user.role === "child" ? Boolean(user.lockModeEnabled) : undefined
+  };
 }
 
 function send(res, status, body) {
@@ -295,6 +302,26 @@ async function route(req, res) {
     const child = { id: id("user"), familyId: parent.familyId, role: "child", name, pinHash: hash(pin) };
     db.users.push(child); save();
     return send(res, 201, { child: publicUser(child), familyCode: familyFor(parent).code });
+  }
+
+  const lockMatch = pathname.match(/^\/children\/([^/]+)\/lock$/);
+  if (req.method === "POST" && lockMatch) {
+    const parent = auth(req, res, ["parent"]); if (!parent) return;
+    const child = db.users.find((item) => item.id === lockMatch[1] && item.familyId === parent.familyId && item.role === "child");
+    if (!child) return send(res, 404, { error: "Profil anak tidak ditemukan." });
+    const body = await bodyOf(req);
+    if (typeof body.enabled !== "boolean") return send(res, 400, { error: "enabled harus bernilai true atau false." });
+    child.lockModeEnabled = body.enabled; save();
+    return send(res, 200, { child: publicUser(child) });
+  }
+
+  // Dipoll berkala oleh perangkat anak (bukan orang tua) untuk tahu apakah harus mengunci
+  // layar sekarang. Sengaja endpoint ringan terpisah dari /family supaya bisa dipanggil
+  // sering tanpa membebani query lain.
+  if (req.method === "GET" && pathname === "/lock-status") {
+    const session = auth(req, res, ["child"]); if (!session) return;
+    const child = db.users.find((item) => item.id === session.id);
+    return send(res, 200, { enabled: Boolean(child && child.lockModeEnabled) });
   }
 
   if (req.method === "GET" && pathname === "/family") {

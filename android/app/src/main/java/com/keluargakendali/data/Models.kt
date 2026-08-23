@@ -9,7 +9,9 @@ data class UserDto(
     val id: String,
     val role: String, // "parent" atau "child"
     val name: String,
-    val familyId: String
+    val familyId: String,
+    // Hanya berarti untuk role "child" - backend selalu mengirim false/tidak ada untuk orang tua.
+    val lockModeEnabled: Boolean = false
 )
 
 data class FamilyDto(

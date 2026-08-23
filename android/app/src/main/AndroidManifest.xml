@@ -1,8 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Dibutuhkan untuk memanggil https://api.patio.my.id. Tidak ada izin lain yang diminta. -->
+    <!-- Dibutuhkan untuk memanggil https://api.patio.my.id. -->
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!--
+        Izin khusus untuk fitur Kontrol Perangkat (lihat DeviceLockService). Ketiganya
+        TIDAK memicu dialog izin otomatis - PACKAGE_USAGE_STATS dan SYSTEM_ALERT_WINDOW
+        wajib diberikan MANUAL oleh pengguna lewat halaman Pengaturan sistem (transparan,
+        terlihat di "Akses khusus", bisa dicabut kapan saja). Bukan accessibility service,
+        bukan root, bukan device admin/owner - sesuai batasan PRD.
+    -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:allowBackup="true"
@@ -18,5 +32,14 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <service
+            android:name=".service.DeviceLockService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Memantau aplikasi yang sedang dibuka anak untuk menegakkan kunci perangkat yang diaktifkan orang tua." />
+        </service>
     </application>
 </manifest>

@@ -35,6 +35,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -61,6 +62,7 @@ fun ParentScreen(
     onAddChild: (name: String, pin: String) -> Unit,
     onCreateTask: (childId: String, title: String, description: String, rewardMinutes: Int) -> Unit,
     onDecide: (taskId: String, approved: Boolean, note: String) -> Unit,
+    onSetLock: (childId: String, enabled: Boolean) -> Unit,
     onDismissMessage: () -> Unit
 ) {
     var showAddChild by remember { mutableStateOf(false) }
@@ -99,6 +101,38 @@ fun ParentScreen(
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     OutlinedButton(onClick = { showAddChild = true }, shape = RoundedCornerShape(14.dp), modifier = Modifier.weight(1f)) { Text("+ Tambah Anak") }
                     Button(onClick = { showCreateTask = true }, enabled = state.children.isNotEmpty(), shape = RoundedCornerShape(14.dp), modifier = Modifier.weight(1f)) { Text("Buat Tugas") }
+                }
+            }
+        }
+
+        if (state.children.isNotEmpty()) {
+            Spacer(Modifier.height(16.dp))
+            Text("Kontrol Perangkat", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
+            Card {
+                Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                    state.children.forEachIndexed { index, child ->
+                        if (index > 0) Spacer(Modifier.height(4.dp))
+                        Row(
+                            Modifier.fillMaxWidth().padding(vertical = 10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(child.name, fontWeight = FontWeight.Bold)
+                                Text(
+                                    if (child.lockModeEnabled) "Aplikasi lain terkunci" else "Tidak dikunci",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (child.lockModeEnabled) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Switch(
+                                checked = child.lockModeEnabled,
+                                onCheckedChange = { onSetLock(child.id, it) },
+                                enabled = !state.loading
+                            )
+                        }
+                    }
                 }
             }
         }

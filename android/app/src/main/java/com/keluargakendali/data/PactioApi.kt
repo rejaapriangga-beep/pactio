@@ -150,6 +150,19 @@ object PactioApi {
         return BalanceResult(minutes = json.getInt("minutes"), approvedTaskCount = json.getInt("approvedTaskCount"))
     }
 
+    /** Dipoll berkala oleh DeviceLockService di perangkat anak. */
+    suspend fun getLockStatus(token: String): Boolean {
+        val json = request("GET", "/lock-status", token = token, body = null)
+        return json.optBoolean("enabled", false)
+    }
+
+    /** Dipanggil orang tua lewat saklar Kontrol Perangkat di dashboard. */
+    suspend fun setChildLock(token: String, childId: String, enabled: Boolean): UserDto {
+        val body = JSONObject().put("enabled", enabled)
+        val json = request("POST", "/children/$childId/lock", token = token, body = body)
+        return json.getJSONObject("child").toUserDto()
+    }
+
     private suspend fun request(method: String, path: String, token: String?, body: JSONObject?): JSONObject =
         withContext(Dispatchers.IO) {
             val connection = try {
@@ -203,7 +216,8 @@ object PactioApi {
         id = getString("id"),
         role = getString("role"),
         name = getString("name"),
-        familyId = getString("familyId")
+        familyId = getString("familyId"),
+        lockModeEnabled = optBoolean("lockModeEnabled", false)
     )
 
     private fun JSONObject.toFamilyDto() = FamilyDto(
