@@ -5,7 +5,11 @@ plugins {
 
 android {
     namespace = "com.keluargakendali"
-    compileSdk = 37
+    // Sempat 37 di source awal, tapi API level itu belum dipublikasikan Google
+    // (dibuktikan gagal di CI: "Failed to find package 'platforms;android-37'").
+    // Diturunkan ke 36 agar sama dengan targetSdk — cukup dan valid untuk semua
+    // fitur yang dipakai project ini.
+    compileSdk = 36
 
     buildFeatures {
         compose = true

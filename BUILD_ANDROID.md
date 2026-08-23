@@ -65,11 +65,10 @@ servernya sendiri (bukan di laptop kamu, jadi tidak perlu install SDK/JDK apa pu
 6. Extract zip-nya, pindahkan `app-debug.apk` ke HP, install seperti biasa (aktifkan
    **Instal aplikasi tidak dikenal** untuk aplikasi yang kamu pakai memindahkan file).
 
-> Catatan: `compileSdk` project ini di-set ke `37`. Kalau API level itu belum dipublikasikan
-> Google saat workflow jalan, langkah `sdkmanager "platforms;android-37"` akan gagal dan
-> build ikut gagal — lihat log run-nya di tab Actions. Solusinya: turunkan `compileSdk`
-> menjadi `36` di `android/app/build.gradle.kts`, commit, push, lalu workflow akan jalan
-> ulang otomatis.
+> **Update:** percobaan pertama workflow ini sempat gagal nyata di CI dengan pesan
+> `Failed to find package 'platforms;android-37'` — source awal men-set `compileSdk = 37`,
+> padahal API level itu belum dipublikasikan Google. Sudah diperbaiki: `compileSdk`
+> diturunkan ke `36` (sama dengan `targetSdk`) di `android/app/build.gradle.kts`.
 
 ## Cara build lewat command line di laptop sendiri (tanpa Android Studio)
 

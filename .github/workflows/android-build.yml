@@ -29,13 +29,7 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Install SDK platform & build-tools yang dibutuhkan
-        run: |
-          set -e
-          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
-          # compileSdk project ini 37 — kalau paket ini belum dipublikasikan oleh
-          # Google, langkah ini akan gagal dan build berikutnya ikut gagal.
-          # Solusinya: turunkan compileSdk ke 36 di android/app/build.gradle.kts.
-          sdkmanager "platforms;android-37"
+        run: sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
 
       - name: Grant execute permission for gradlew
         working-directory: android
