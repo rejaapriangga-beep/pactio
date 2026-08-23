@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -20,9 +21,11 @@ import androidx.compose.material.icons.filled.Login
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -101,11 +104,10 @@ fun AuthScreen(
                 when (parentStep) {
                     ParentStep.MENU -> ParentMenuSheet(
                         onSelectLogin = { parentStep = ParentStep.LOGIN },
-                        onSelectRegister = { parentStep = ParentStep.REGISTER },
-                        onSelectGoogle = ::launchGoogleSignIn
+                        onSelectRegister = { parentStep = ParentStep.REGISTER }
                     )
                     ParentStep.LOGIN -> ParentSheetForm(state = state, onDismissMessage = onDismissMessage) {
-                        LoginParentForm(loading = state.loading, onSubmit = onLoginParent)
+                        LoginParentForm(loading = state.loading, onSubmit = onLoginParent, onGoogleClick = ::launchGoogleSignIn)
                     }
                     ParentStep.REGISTER -> ParentSheetForm(state = state, onDismissMessage = onDismissMessage) {
                         RegisterParentForm(loading = state.loading, onSubmit = onRegisterParent)
@@ -199,7 +201,7 @@ private fun ChildLandingScreen(
 }
 
 @Composable
-private fun ParentMenuSheet(onSelectLogin: () -> Unit, onSelectRegister: () -> Unit, onSelectGoogle: () -> Unit) {
+private fun ParentMenuSheet(onSelectLogin: () -> Unit, onSelectRegister: () -> Unit) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
         Column {
             Text("Akses Orang Tua", style = MaterialTheme.typography.titleLarge)
@@ -212,19 +214,11 @@ private fun ParentMenuSheet(onSelectLogin: () -> Unit, onSelectRegister: () -> U
         }
 
         ParentMenuOption(
-            icon = Icons.Default.Login,
-            iconContainer = MaterialTheme.colorScheme.secondaryContainer,
-            iconTint = MaterialTheme.colorScheme.onSecondaryContainer,
-            title = "Lanjut dengan Google",
-            subtitle = "Masuk, atau daftar otomatis kalau akunnya baru",
-            onClick = onSelectGoogle
-        )
-        ParentMenuOption(
             icon = Icons.Default.Key,
             iconContainer = MaterialTheme.colorScheme.primaryContainer,
             iconTint = MaterialTheme.colorScheme.onPrimaryContainer,
             title = "Masuk sebagai Orang Tua",
-            subtitle = "Pakai email dan kata sandi",
+            subtitle = "Sudah punya akun keluarga",
             onClick = onSelectLogin
         )
         ParentMenuOption(
@@ -232,7 +226,7 @@ private fun ParentMenuSheet(onSelectLogin: () -> Unit, onSelectRegister: () -> U
             iconContainer = MaterialTheme.colorScheme.tertiaryContainer,
             iconTint = MaterialTheme.colorScheme.onTertiaryContainer,
             title = "Daftar Keluarga Baru",
-            subtitle = "Buat akun keluarga pakai email sendiri",
+            subtitle = "Buat akun keluarga pertama kamu",
             onClick = onSelectRegister
         )
     }
@@ -305,7 +299,7 @@ private fun RegisterParentForm(loading: Boolean, onSubmit: (String, String, Stri
 }
 
 @Composable
-private fun LoginParentForm(loading: Boolean, onSubmit: (String, String) -> Unit) {
+private fun LoginParentForm(loading: Boolean, onSubmit: (String, String) -> Unit, onGoogleClick: () -> Unit) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
 
@@ -324,5 +318,22 @@ private fun LoginParentForm(loading: Boolean, onSubmit: (String, String) -> Unit
             shape = RoundedCornerShape(14.dp),
             modifier = Modifier.fillMaxWidth().height(52.dp)
         ) { Text("Masuk", style = MaterialTheme.typography.labelLarge) }
+
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            HorizontalDivider(Modifier.weight(1f))
+            Text("atau", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            HorizontalDivider(Modifier.weight(1f))
+        }
+
+        OutlinedButton(
+            onClick = onGoogleClick,
+            enabled = !loading,
+            shape = RoundedCornerShape(14.dp),
+            modifier = Modifier.fillMaxWidth().height(52.dp)
+        ) {
+            Icon(Icons.Default.Login, contentDescription = null, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Lanjut dengan Google", style = MaterialTheme.typography.labelLarge)
+        }
     }
 }
