@@ -6,6 +6,12 @@ const path = require("path");
 
 const PORT = Number(process.env.PORT || 3030);
 const DATA_FILE = process.env.DATA_FILE || path.join(__dirname, "data.json");
+// Foto bukti tugas disimpan sebagai file biasa (bukan di data.json) supaya JSON db tidak
+// membengkak. Ditaruh di folder yang sama dengan DATA_FILE, jadi otomatis ikut ke volume
+// Docker yang sama (lihat docker-compose.yml) tanpa perlu konfigurasi tambahan.
+const PHOTOS_DIR = path.join(path.dirname(DATA_FILE), "photos");
+fs.mkdirSync(PHOTOS_DIR, { recursive: true });
+const MAX_PHOTO_BYTES = 5 * 1024 * 1024; // 5MB
 // Client ID OAuth tipe "Web application" dari Google Cloud Console. Ini BUKAN rahasia
 // (Client ID memang publik, sama seperti yang dibundel di aplikasi Android) — dipakai
 // di sini hanya untuk memeriksa klaim "aud" pada token ID Google. Kalau kosong, endpoint
@@ -165,6 +171,41 @@ function taskForUser(task, user) {
   return task.familyId === user.familyId && (user.role === "parent" || task.childId === user.id);
 }
 
+const JPEG_MAGIC = Buffer.from([0xff, 0xd8, 0xff]);
+const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+// Menerima foto bukti sebagai data URI base64 (bukan multipart) - paling sederhana dengan
+// http bawaan Node tanpa dependency parsing multipart eksternal. Isi file diverifikasi lewat
+// magic bytes, BUKAN cuma percaya field mime dari klien, supaya tidak bisa dipakai menyimpan
+// file sembarangan mengaku sebagai foto.
+function validatePhoto(dataUri) {
+  const match = /^data:(image\/jpeg|image\/png);base64,([A-Za-z0-9+/=]+)$/.exec(String(dataUri || ""));
+  if (!match) throw new Error("Format foto tidak valid (harus JPEG atau PNG).");
+  const [, mime, base64] = match;
+  const buffer = Buffer.from(base64, "base64");
+  if (buffer.length === 0 || buffer.length > MAX_PHOTO_BYTES) throw new Error("Ukuran foto tidak valid (maksimal 5MB).");
+  const magicOk = mime === "image/jpeg"
+    ? buffer.subarray(0, 3).equals(JPEG_MAGIC)
+    : buffer.subarray(0, 8).equals(PNG_MAGIC);
+  if (!magicOk) throw new Error("Isi file tidak cocok dengan tipe foto yang dinyatakan.");
+  return { buffer, mime, ext: mime === "image/jpeg" ? "jpg" : "png" };
+}
+
+function photoPath(task, ext) {
+  return path.join(PHOTOS_DIR, `${task.id}.${ext}`);
+}
+
+function savePhoto(task, dataUri) {
+  const photo = validatePhoto(dataUri);
+  // Hapus foto lama kalau ekstensinya beda (mis. resubmit dari JPEG ke PNG) supaya tidak menumpuk file yatim.
+  for (const ext of ["jpg", "png"]) {
+    const oldPath = photoPath(task, ext);
+    if (ext !== photo.ext && fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+  }
+  fs.writeFileSync(photoPath(task, photo.ext), photo.buffer);
+  task.evidencePhotoType = photo.mime;
+}
+
 async function route(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const pathname = url.pathname;
@@ -289,8 +330,25 @@ async function route(req, res) {
     if (!task) return send(res, 404, { error: "Tugas tidak ditemukan." });
     if (task.status !== "assigned" && task.status !== "rejected") return send(res, 409, { error: "Tugas tidak dapat dikirim pada status ini." });
     const body = await bodyOf(req);
+    if (body.evidencePhoto) {
+      try { savePhoto(task, body.evidencePhoto); }
+      catch (error) { return send(res, 400, { error: error.message }); }
+    }
     task.status = "submitted"; task.evidence = String(body.evidence || "").trim(); task.submittedAt = new Date().toISOString(); save();
     return send(res, 200, { task });
+  }
+
+  const photoMatch = pathname.match(/^\/tasks\/([^/]+)\/photo$/);
+  if (req.method === "GET" && photoMatch) {
+    const user = auth(req, res); if (!user) return;
+    const task = db.tasks.find((item) => item.id === photoMatch[1] && taskForUser(item, user));
+    if (!task || !task.evidencePhotoType) return send(res, 404, { error: "Foto tidak ditemukan." });
+    const ext = task.evidencePhotoType === "image/jpeg" ? "jpg" : "png";
+    const filePath = photoPath(task, ext);
+    if (!fs.existsSync(filePath)) return send(res, 404, { error: "Foto tidak ditemukan." });
+    const buffer = fs.readFileSync(filePath);
+    res.writeHead(200, { "Content-Type": task.evidencePhotoType, "Content-Length": buffer.length, "Cache-Control": "private, max-age=86400" });
+    return res.end(buffer);
   }
 
   const decisionMatch = pathname.match(/^\/tasks\/([^/]+)\/decision$/);

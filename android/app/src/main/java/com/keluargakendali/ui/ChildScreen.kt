@@ -1,5 +1,10 @@
 package com.keluargakendali.ui
 
+import android.graphics.Bitmap
+import android.util.Base64
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,6 +18,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -20,6 +26,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -30,14 +37,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.keluargakendali.data.TaskDto
+import java.io.ByteArrayOutputStream
 
 @Composable
 fun ChildScreen(
     state: UiState,
-    onSubmitTask: (taskId: String, evidence: String) -> Unit,
+    onSubmitTask: (taskId: String, evidence: String, evidencePhotoDataUri: String?) -> Unit,
     onDismissMessage: () -> Unit
 ) {
     var submittingTask by remember { mutableStateOf<TaskDto?>(null) }
@@ -92,8 +103,8 @@ fun ChildScreen(
             task = current,
             loading = state.loading,
             onDismiss = { submittingTask = null },
-            onSubmit = { evidence ->
-                onSubmitTask(current.id, evidence)
+            onSubmit = { evidence, photoDataUri ->
+                onSubmitTask(current.id, evidence, photoDataUri)
                 submittingTask = null
             }
         )
@@ -129,8 +140,21 @@ private fun ChildTaskCard(task: TaskDto, loading: Boolean, onKirim: () -> Unit) 
 }
 
 @Composable
-private fun SubmitEvidenceDialog(task: TaskDto, loading: Boolean, onDismiss: () -> Unit, onSubmit: (String) -> Unit) {
+private fun SubmitEvidenceDialog(
+    task: TaskDto,
+    loading: Boolean,
+    onDismiss: () -> Unit,
+    onSubmit: (evidence: String, evidencePhotoDataUri: String?) -> Unit
+) {
     var evidence by remember { mutableStateOf("") }
+    var photo by remember { mutableStateOf<Bitmap?>(null) }
+
+    // Memanggil aplikasi kamera bawaan sistem lewat Activity Result API resmi Android —
+    // TIDAK butuh izin CAMERA (didelegasikan ke aplikasi kamera), transparan buat pengguna
+    // (dialog kamera asli yang tampil, bukan capture tersembunyi).
+    val takePicture = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap ->
+        if (bitmap != null) photo = bitmap
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -138,20 +162,48 @@ private fun SubmitEvidenceDialog(task: TaskDto, loading: Boolean, onDismiss: () 
         text = {
             Column {
                 Text(
-                    "Ceritakan apa yang sudah kamu lakukan. Saat ini bukti berupa teks saja (belum foto).",
+                    "Ceritakan apa yang sudah kamu lakukan, dan foto sebagai bukti (opsional).",
                     style = MaterialTheme.typography.bodySmall
                 )
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     evidence, { evidence = it },
-                    label = { Text("Bukti selesai") },
+                    label = { Text("Bukti selesai (teks)") },
                     modifier = Modifier.fillMaxWidth()
                 )
+                Spacer(Modifier.height(12.dp))
+
+                val currentPhoto = photo
+                if (currentPhoto != null) {
+                    Image(
+                        bitmap = currentPhoto.asImageBitmap(),
+                        contentDescription = "Pratinjau foto bukti",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxWidth().height(160.dp).clip(RoundedCornerShape(12.dp))
+                    )
+                    Spacer(Modifier.height(8.dp))
+                }
+                OutlinedButton(onClick = { takePicture.launch(null) }, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Default.PhotoCamera, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(if (currentPhoto == null) "Ambil Foto" else "Ambil Ulang Foto")
+                }
             }
         },
         confirmButton = {
-            Button(onClick = { onSubmit(evidence.trim()) }, enabled = !loading) { Text("Kirim") }
+            Button(
+                onClick = { onSubmit(evidence.trim(), photo?.toJpegDataUri()) },
+                enabled = !loading
+            ) { Text("Kirim") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Batal") } }
     )
+}
+
+/** Dikompresi jadi JPEG kualitas 80 supaya ukuran data URI tetap wajar untuk dikirim sebagai JSON. */
+private fun Bitmap.toJpegDataUri(): String {
+    val output = ByteArrayOutputStream()
+    compress(Bitmap.CompressFormat.JPEG, 80, output)
+    val base64 = Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)
+    return "data:image/jpeg;base64,$base64"
 }

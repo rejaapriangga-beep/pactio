@@ -29,6 +29,7 @@ data class TaskDto(
     val status: String, // "assigned" | "submitted" | "approved" | "rejected"
     val createdAt: String,
     val evidence: String? = null,
+    val evidencePhotoType: String? = null, // "image/jpeg" | "image/png", null = belum ada foto bukti
     val submittedAt: String? = null,
     val decisionNote: String? = null,
     val decidedAt: String? = null
