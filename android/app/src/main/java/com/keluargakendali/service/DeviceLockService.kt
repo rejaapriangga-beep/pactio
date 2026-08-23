@@ -10,7 +10,9 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.PixelFormat
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.util.Log
 import android.view.Gravity
 import android.view.View
@@ -43,6 +45,12 @@ class DeviceLockService : Service() {
     private var pollJob: Job? = null
     private var windowManager: WindowManager? = null
     private var overlayView: View? = null
+
+    // WindowManager.addView/removeView WAJIB dipanggil dari thread yang punya Looper (pada
+    // praktiknya: main thread) - pollLoop() jalan di Dispatchers.Default (thread pool tanpa
+    // Looper), jadi panggilannya harus dilempar ke sini lewat mainHandler.post {}, bukan
+    // dipanggil langsung dari coroutine background.
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -117,59 +125,66 @@ class DeviceLockService : Service() {
     private fun showOverlay() {
         if (overlayView != null) return
         Log.d(TAG, "showOverlay: adding view")
-        val context = this
+        mainHandler.post {
+            // Cek ulang di dalam - bisa saja sudah ditambahkan oleh post sebelumnya
+            // yang sempat tertunda di antrian main thread.
+            if (overlayView != null) return@post
+            val context = this@DeviceLockService
 
-        val view = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setBackgroundColor(Color.parseColor("#E61B1B1B"))
-            setPadding(64, 64, 64, 64)
+            val view = LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                setBackgroundColor(Color.parseColor("#E61B1B1B"))
+                setPadding(64, 64, 64, 64)
 
-            addView(TextView(context).apply {
-                text = "Perangkat Terkunci"
-                setTextColor(Color.WHITE)
-                textSize = 24f
-                gravity = Gravity.CENTER
-            })
-            addView(TextView(context).apply {
-                text = "Orang tua sedang mengaktifkan mode kunci. Buka Pactio untuk melihat tugas dan saldo hadiahmu."
-                setTextColor(Color.WHITE)
-                textSize = 15f
-                gravity = Gravity.CENTER
-                setPadding(0, 32, 0, 32)
-            })
-            addView(Button(context).apply {
-                text = "Buka Pactio"
-                setOnClickListener {
-                    packageManager.getLaunchIntentForPackage(packageName)?.let {
-                        it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        startActivity(it)
+                addView(TextView(context).apply {
+                    text = "Perangkat Terkunci"
+                    setTextColor(Color.WHITE)
+                    textSize = 24f
+                    gravity = Gravity.CENTER
+                })
+                addView(TextView(context).apply {
+                    text = "Orang tua sedang mengaktifkan mode kunci. Buka Pactio untuk melihat tugas dan saldo hadiahmu."
+                    setTextColor(Color.WHITE)
+                    textSize = 15f
+                    gravity = Gravity.CENTER
+                    setPadding(0, 32, 0, 32)
+                })
+                addView(Button(context).apply {
+                    text = "Buka Pactio"
+                    setOnClickListener {
+                        packageManager.getLaunchIntentForPackage(packageName)?.let {
+                            it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            startActivity(it)
+                        }
                     }
-                }
-            })
-        }
-
-        val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
-            PixelFormat.TRANSLUCENT
-        )
-        runCatching { windowManager?.addView(view, params) }
-            .onSuccess {
-                overlayView = view
-                Log.d(TAG, "showOverlay: addView succeeded")
+                })
             }
-            .onFailure { error -> Log.e(TAG, "showOverlay: addView failed", error) }
+
+            val params = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                PixelFormat.TRANSLUCENT
+            )
+            runCatching { windowManager?.addView(view, params) }
+                .onSuccess {
+                    overlayView = view
+                    Log.d(TAG, "showOverlay: addView succeeded")
+                }
+                .onFailure { error -> Log.e(TAG, "showOverlay: addView failed", error) }
+        }
     }
 
     private fun removeOverlay() {
         val view = overlayView ?: return
         Log.d(TAG, "removeOverlay: removing view")
-        runCatching { windowManager?.removeView(view) }
-            .onFailure { error -> Log.e(TAG, "removeOverlay: removeView failed", error) }
         overlayView = null
+        mainHandler.post {
+            runCatching { windowManager?.removeView(view) }
+                .onFailure { error -> Log.e(TAG, "removeOverlay: removeView failed", error) }
+        }
     }
 
     private fun buildNotification(): Notification {
