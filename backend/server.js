@@ -17,18 +17,28 @@ const MAX_PHOTO_BYTES = 5 * 1024 * 1024; // 5MB
 // di sini hanya untuk memeriksa klaim "aud" pada token ID Google. Kalau kosong, endpoint
 // login Google akan menolak dengan pesan jelas, bukan diam-diam gagal.
 const GOOGLE_WEB_CLIENT_ID = process.env.GOOGLE_WEB_CLIENT_ID || "";
+// sessions: Map token -> { token, userId, createdAt } untuk lookup cepat saat runtime.
+// Sumber kebenarannya tetap db.sessions (ikut tersimpan ke DATA_FILE) supaya token yang
+// sudah diberikan ke perangkat (orang tua maupun anak) TIDAK hilang begitu proses backend
+// di-restart (deploy ulang, VPS reboot, dsb) - sebelum ini semua sesi hanya ada di memori,
+// jadi setiap restart backend memaksa semua orang login ulang (termasuk anak input ulang
+// kode keluarga + PIN), padahal dari sisi perangkat mereka tidak pernah "logout".
 const sessions = new Map();
 
 function initialData() {
-  return { families: [], users: [], tasks: [] };
+  return { families: [], users: [], tasks: [], sessions: [] };
 }
 
 function loadData() {
   if (!fs.existsSync(DATA_FILE)) return initialData();
-  return JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
+  const loaded = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
+  if (!Array.isArray(loaded.sessions)) loaded.sessions = [];
+  return loaded;
 }
 
 let db = loadData();
+for (const record of db.sessions) sessions.set(record.token, record);
+
 function save() {
   fs.writeFileSync(DATA_FILE, JSON.stringify(db, null, 2));
 }
@@ -81,16 +91,24 @@ function auth(req, res, allowedRoles) {
   const value = req.headers.authorization || "";
   const token = value.startsWith("Bearer ") ? value.slice(7) : "";
   const session = sessions.get(token);
-  if (!session || (allowedRoles && !allowedRoles.includes(session.user.role))) {
+  // Selalu ambil user TERBARU dari db.users lewat userId (bukan snapshot lama yang
+  // disimpan di sesi) - supaya perubahan seperti lockModeEnabled langsung kelihatan tanpa
+  // perlu login ulang, dan supaya sesi yang dipulihkan dari DATA_FILE saat restart tetap
+  // sinkron kalau datanya pernah diedit manual.
+  const user = session && db.users.find((item) => item.id === session.userId);
+  if (!user || (allowedRoles && !allowedRoles.includes(user.role))) {
     send(res, 401, { error: "Autentikasi atau peran tidak diizinkan." });
     return null;
   }
-  return session.user;
+  return user;
 }
 
 function createSession(user) {
   const token = crypto.randomBytes(32).toString("base64url");
-  sessions.set(token, { user, createdAt: Date.now() });
+  const record = { token, userId: user.id, createdAt: Date.now() };
+  sessions.set(token, record);
+  db.sessions.push(record);
+  save();
   return token;
 }
 
@@ -229,7 +247,7 @@ async function route(req, res) {
     const family = { id: id("family"), name: familyName, code: crypto.randomBytes(3).toString("hex").toUpperCase() };
     const user = { id: id("user"), familyId: family.id, role: "parent", name, email, passwordHash: hash(password) };
     db.families.push(family); db.users.push(user); save();
-    return send(res, 201, { token: createSession(publicUser(user)), user: publicUser(user), family: { id: family.id, name: family.name, code: family.code } });
+    return send(res, 201, { token: createSession(user), user: publicUser(user), family: { id: family.id, name: family.name, code: family.code } });
   }
 
   if (req.method === "POST" && pathname === "/auth/login-parent") {
@@ -242,7 +260,7 @@ async function route(req, res) {
     if (!user || !user.passwordHash || !verify(password, user.passwordHash)) {
       return send(res, 401, { error: "Email atau kata sandi salah." });
     }
-    return send(res, 200, { token: createSession(publicUser(user)), user: publicUser(user) });
+    return send(res, 200, { token: createSession(user), user: publicUser(user) });
   }
 
   if (req.method === "POST" && pathname === "/auth/google-parent") {
@@ -264,7 +282,7 @@ async function route(req, res) {
     if (user) {
       // Akun email/password yang sama sudah ada -> tautkan googleId supaya login berikutnya lebih cepat.
       if (!user.googleId) { user.googleId = googleId; save(); }
-      return send(res, 200, { token: createSession(publicUser(user)), user: publicUser(user) });
+      return send(res, 200, { token: createSession(user), user: publicUser(user) });
     }
 
     // Belum ada akun sama sekali untuk akun Google ini -> buat keluarga baru otomatis.
@@ -277,7 +295,7 @@ async function route(req, res) {
     const newUser = { id: id("user"), familyId: family.id, role: "parent", name: displayName, email, googleId, passwordHash: null };
     db.families.push(family); db.users.push(newUser); save();
     return send(res, 201, {
-      token: createSession(publicUser(newUser)),
+      token: createSession(newUser),
       user: publicUser(newUser),
       family: { id: family.id, name: family.name, code: family.code }
     });
@@ -290,7 +308,7 @@ async function route(req, res) {
     const family = db.families.find((item) => item.code === code);
     const user = family && db.users.find((item) => item.role === "child" && item.familyId === family.id && verify(pin, item.pinHash));
     if (!user) return send(res, 401, { error: "Kode keluarga atau PIN salah." });
-    return send(res, 200, { token: createSession(publicUser(user)), user: publicUser(user) });
+    return send(res, 200, { token: createSession(user), user: publicUser(user) });
   }
 
   if (req.method === "POST" && pathname === "/family/children") {
@@ -319,9 +337,31 @@ async function route(req, res) {
   // layar sekarang. Sengaja endpoint ringan terpisah dari /family supaya bisa dipanggil
   // sering tanpa membebani query lain.
   if (req.method === "GET" && pathname === "/lock-status") {
-    const session = auth(req, res, ["child"]); if (!session) return;
-    const child = db.users.find((item) => item.id === session.id);
-    return send(res, 200, { enabled: Boolean(child && child.lockModeEnabled) });
+    const child = auth(req, res, ["child"]); if (!child) return;
+    return send(res, 200, { enabled: Boolean(child.lockModeEnabled) });
+  }
+
+  // Dipanggil dari perangkat anak sebelum mengizinkan tombol "Keluar" (logout) - supaya
+  // anak tidak bisa keluar dari akunnya sendiri (mis. untuk lolos dari Mode Kunci) tanpa
+  // sepengetahuan orang tua. Sengaja cocokkan kata sandi ke SEMUA akun orang tua di
+  // keluarga yang sama (bukan minta email tertentu) - anak tidak perlu tahu email orang
+  // tua mana yang dipakai, cukup kata sandinya. Kalau semua orang tua di keluarga ini
+  // masuk lewat Google (belum pernah set kata sandi), endpoint ini akan selalu menolak -
+  // itu batasan yang jujur ditampilkan ke pengguna, bukan celah keamanan.
+  if (req.method === "POST" && pathname === "/children/verify-parent-password") {
+    const child = auth(req, res, ["child"]); if (!child) return;
+    const body = await bodyOf(req);
+    const password = requireText(body.password, "Kata sandi orang tua");
+    const parents = db.users.filter((item) => item.role === "parent" && item.familyId === child.familyId);
+    if (!parents.some((item) => item.passwordHash)) {
+      return send(res, 400, { error: "Orang tua di keluarga ini belum mengatur kata sandi (masuk lewat Google). Minta orang tua yang keluarkan langsung dari HP ini." });
+    }
+    const matches = parents.some((item) => item.passwordHash && verify(password, item.passwordHash));
+    // Sengaja 403 (bukan 401) - token sesi anak sendiri tetap valid di sini, cuma kata
+    // sandi orang tua yang ditolak. Kalau dijawab 401, klien Android akan menganggap
+    // SESI ANAK sendiri yang kedaluwarsa dan memaksa logout otomatis - keliru total.
+    if (!matches) return send(res, 403, { error: "Kata sandi orang tua salah." });
+    return send(res, 200, { ok: true });
   }
 
   if (req.method === "GET" && pathname === "/family") {

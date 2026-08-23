@@ -163,6 +163,18 @@ object PactioApi {
         return json.getJSONObject("child").toUserDto()
     }
 
+    /**
+     * Dipanggil dari perangkat anak sebelum tombol "Keluar" benar-benar memproses logout —
+     * lihat AppViewModel.confirmChildLogout & MainActivity.ChildLogoutDialog. Melempar
+     * ApiException.Http (bukan Unauthorized) kalau kata sandinya salah, supaya TIDAK memicu
+     * logout paksa "sesi berakhir" (lihat catatan di server.js kenapa endpoint ini sengaja
+     * balas 403, bukan 401).
+     */
+    suspend fun verifyParentPassword(token: String, password: String) {
+        val body = JSONObject().put("password", password)
+        request("POST", "/children/verify-parent-password", token = token, body = body)
+    }
+
     private suspend fun request(method: String, path: String, token: String?, body: JSONObject?): JSONObject =
         withContext(Dispatchers.IO) {
             val connection = try {

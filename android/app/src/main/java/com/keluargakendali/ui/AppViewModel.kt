@@ -79,6 +79,38 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _state.value = UiState()
     }
 
+    /**
+     * Dipanggil dari tombol "Keluar" saat yang login adalah ANAK - memverifikasi kata sandi
+     * orang tua ke server dulu sebelum benar-benar logout (lihat verify-parent-password di
+     * backend), supaya anak tidak bisa keluar dari akunnya sendiri sendirian (mis. untuk
+     * lolos dari Mode Kunci) tanpa sepengetahuan orang tua.
+     *
+     * Sengaja TIDAK lewat launchGuarded biasa: errornya (kata sandi salah) harus muncul DI
+     * DALAM dialog konfirmasi lewat onWrongPassword, bukan sebagai banner global yang bisa
+     * bertabrakan dengan state layar di belakangnya.
+     */
+    fun confirmChildLogout(password: String, onWrongPassword: (String) -> Unit) {
+        val token = _state.value.token ?: return
+        viewModelScope.launch {
+            _state.update { it.copy(loading = true) }
+            try {
+                PactioApi.verifyParentPassword(token, password)
+                logout()
+            } catch (error: ApiException.Unauthorized) {
+                // Sesi ANAK sendiri yang sudah tidak valid (bukan kata sandi orang tua salah -
+                // itu dibalas 403 oleh server, ditangkap di cabang ApiException di bawah).
+                tokenStore.clear()
+                _state.value = UiState(errorMessage = "Sesi berakhir, silakan masuk kembali.")
+            } catch (error: ApiException) {
+                onWrongPassword(error.message ?: "Kata sandi orang tua salah.")
+                _state.update { it.copy(loading = false) }
+            } catch (error: Exception) {
+                onWrongPassword("Tidak dapat terhubung ke server. Periksa koneksi internet.")
+                _state.update { it.copy(loading = false) }
+            }
+        }
+    }
+
     fun addChild(name: String, pin: String) = requireToken { token ->
         PactioApi.addChild(token, name, pin)
         loadFamily(token)
@@ -130,9 +162,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     /**
      * Dipakai setelah login/register dan saat memulihkan sesi dari token tersimpan.
      * Sengaja lewat launchGuarded (bukan viewModelScope.launch polos) supaya kalau token
-     * ternyata sudah tidak valid lagi di backend (mis. server di-restart, sesi in-memory
-     * hilang - lihat catatan keamanan backend) errornya ditangani rapi (logout otomatis),
-     * bukan bikin aplikasi crash saat baru dibuka.
+     * ternyata sudah tidak valid lagi di backend (mis. dihapus manual, atau akunnya dihapus)
+     * errornya ditangani rapi (logout otomatis), bukan bikin aplikasi crash saat baru dibuka.
      */
     private fun refreshAll() = launchGuarded {
         val token = _state.value.token ?: return@launchGuarded
