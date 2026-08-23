@@ -22,6 +22,27 @@ android {
         versionCode = 1
         versionName = "0.1.0"
     }
+
+    // Debug keystore TETAP (disimpan di repo, bukan di-generate ulang tiap build).
+    // Tanpa ini, setiap build APK debug di CI (runner GitHub selalu fresh/sekali pakai)
+    // otomatis pakai keystore acak baru -> APK baru tidak bisa "update" menimpa yang lama
+    // di HP, harus uninstall dulu (terbukti nyata: INSTALL_FAILED_UPDATE_INCOMPATIBLE).
+    // Ini debug key biasa (bukan release/production), aman disimpan di repo publik —
+    // sama seperti debug.keystore default Android Studio yang juga dibagi banyak developer.
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
+    buildTypes {
+        getByName("debug") {
+            signingConfig = signingConfigs.getByName("debug")
+        }
+    }
 }
 
 dependencies {
