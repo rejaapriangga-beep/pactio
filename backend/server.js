@@ -116,6 +116,17 @@ function familyFor(user) {
   return db.families.find((family) => family.id === user.familyId);
 }
 
+// Saldo yang BISA DIPAKAI = total menit dari tugas yang sudah disetujui, dikurangi menit
+// yang sudah pernah "dipakai" (redeemedMinutesTotal - lihat POST /access-balance/redeem).
+// Sengaja dihitung ulang tiap kali (bukan disimpan sebagai satu angka "saldo") supaya
+// tidak pernah lepas sinkron dari daftar tugas yang jadi sumber kebenarannya.
+function accessBalanceFor(child) {
+  const approved = db.tasks.filter((task) => task.childId === child.id && task.status === "approved");
+  const totalEarned = approved.reduce((total, task) => total + task.rewardMinutes, 0);
+  const minutes = Math.max(0, totalEarned - (child.redeemedMinutesTotal || 0));
+  return { minutes, approvedTaskCount: approved.length };
+}
+
 // --- Verifikasi Google Sign-In (Credential Manager di Android) ---------------------
 // Diimplementasikan manual dengan modul bawaan Node (https + crypto), TANPA dependency
 // npm eksternal (google-auth-library dsb.) — konsisten dengan aturan proyek ini.
@@ -336,9 +347,17 @@ async function route(req, res) {
   // Dipoll berkala oleh perangkat anak (bukan orang tua) untuk tahu apakah harus mengunci
   // layar sekarang. Sengaja endpoint ringan terpisah dari /family supaya bisa dipanggil
   // sering tanpa membebani query lain.
+  //
+  // unlockUntil (lihat POST /access-balance/redeem): kalau masih di masa depan, kunci
+  // dianggap TIDAK aktif walau lockModeEnabled=true - ini "waktu akses" yang dibeli anak
+  // pakai saldo menit hadiahnya. Waktu berjalan terus (wall-clock), tidak peduli anak
+  // benar-benar memakai HP atau tidak - sesuai keputusan produk (sederhana & bisa diprediksi,
+  // bukan pelacakan pemakaian per aplikasi).
   if (req.method === "GET" && pathname === "/lock-status") {
     const child = auth(req, res, ["child"]); if (!child) return;
-    return send(res, 200, { enabled: Boolean(child.lockModeEnabled) });
+    const unlockUntil = child.unlockUntil || 0;
+    const unlockActive = unlockUntil > Date.now();
+    return send(res, 200, { enabled: Boolean(child.lockModeEnabled) && !unlockActive, unlockUntil });
   }
 
   // Dipanggil dari perangkat anak sebelum mengizinkan tombol "Keluar" (logout) - supaya
@@ -432,9 +451,26 @@ async function route(req, res) {
 
   if (req.method === "GET" && pathname === "/access-balance") {
     const child = auth(req, res, ["child"]); if (!child) return;
-    const approved = db.tasks.filter((task) => task.childId === child.id && task.status === "approved");
-    const minutes = approved.reduce((total, task) => total + task.rewardMinutes, 0);
-    return send(res, 200, { minutes, approvedTaskCount: approved.length });
+    return send(res, 200, { ...accessBalanceFor(child), unlockUntil: child.unlockUntil || 0 });
+  }
+
+  // Anak menekan tombol "Gunakan Waktu" di halaman utama - menukar sebagian/seluruh saldo
+  // menit hadiah menjadi jendela waktu Mode Kunci nonaktif. Kalau masih ada sisa waktu aktif
+  // dari penukaran sebelumnya, waktu baru DITAMBAHKAN di belakangnya (bukan menimpa) - jadi
+  // anak bisa menukar sedikit-sedikit tanpa kehilangan sisa waktu yang sedang berjalan.
+  if (req.method === "POST" && pathname === "/access-balance/redeem") {
+    const child = auth(req, res, ["child"]); if (!child) return;
+    const body = await bodyOf(req);
+    const minutes = Number(body.minutes);
+    if (!Number.isInteger(minutes) || minutes < 1) return send(res, 400, { error: "Jumlah menit harus bilangan bulat positif." });
+    const balance = accessBalanceFor(child);
+    if (minutes > balance.minutes) return send(res, 400, { error: `Saldo tidak cukup (tersisa ${balance.minutes} menit).` });
+    const now = Date.now();
+    const base = Math.max(now, child.unlockUntil || 0);
+    child.redeemedMinutesTotal = (child.redeemedMinutesTotal || 0) + minutes;
+    child.unlockUntil = base + minutes * 60 * 1000;
+    save();
+    return send(res, 200, { ...accessBalanceFor(child), unlockUntil: child.unlockUntil });
   }
 
   send(res, 404, { error: "Endpoint tidak ditemukan." });

@@ -25,7 +25,10 @@ data class UiState(
     val children: List<UserDto> = emptyList(),
     val tasks: List<TaskDto> = emptyList(),
     val balanceMinutes: Int = 0,
-    val approvedTaskCount: Int = 0
+    val approvedTaskCount: Int = 0,
+    // Timestamp epoch ms sampai kapan Mode Kunci nonaktif (0 = tidak sedang aktif) - lihat
+    // ChildScreen (tombol "Gunakan Waktu") & DeviceLockService.
+    val unlockUntil: Long = 0L
 )
 
 class AppViewModel(application: Application) : AndroidViewModel(application) {
@@ -136,6 +139,23 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _state.update { it.copy(infoMessage = if (approved) "Tugas disetujui." else "Tugas ditolak.") }
     }
 
+    /**
+     * Anak menekan "Gunakan Waktu" - menukar sebagian/seluruh saldo menit hadiah jadi
+     * jendela waktu Mode Kunci nonaktif. Balasan server (balance terbaru + unlockUntil)
+     * langsung dipakai untuk update state, tidak perlu refresh terpisah.
+     */
+    fun redeemAccessBalance(minutes: Int) = requireToken { token ->
+        val balance = PactioApi.redeemAccessBalance(token, minutes)
+        _state.update {
+            it.copy(
+                balanceMinutes = balance.minutes,
+                approvedTaskCount = balance.approvedTaskCount,
+                unlockUntil = balance.unlockUntil,
+                infoMessage = "Waktu akses dibuka selama $minutes menit."
+            )
+        }
+    }
+
     fun setChildLock(childId: String, enabled: Boolean) = requireToken { token ->
         PactioApi.setChildLock(token, childId, enabled)
         loadFamily(token)
@@ -185,7 +205,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private suspend fun loadBalanceIfChild(token: String) {
         if (_state.value.currentUser?.role != "child") return
         val balance = PactioApi.getAccessBalance(token)
-        _state.update { it.copy(balanceMinutes = balance.minutes, approvedTaskCount = balance.approvedTaskCount) }
+        _state.update {
+            it.copy(balanceMinutes = balance.minutes, approvedTaskCount = balance.approvedTaskCount, unlockUntil = balance.unlockUntil)
+        }
     }
 
     /** Menjalankan aksi yang butuh token; tidak melakukan apa pun kalau belum login. */

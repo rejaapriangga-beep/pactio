@@ -147,7 +147,18 @@ object PactioApi {
 
     suspend fun getAccessBalance(token: String): BalanceResult {
         val json = request("GET", "/access-balance", token = token, body = null)
-        return BalanceResult(minutes = json.getInt("minutes"), approvedTaskCount = json.getInt("approvedTaskCount"))
+        return json.toBalanceResult()
+    }
+
+    /**
+     * Anak menukar sebagian/seluruh saldo menit hadiah jadi jendela waktu Mode Kunci
+     * nonaktif ("Gunakan Waktu" di ChildScreen). Server yang jadi sumber kebenaran waktu
+     * (unlockUntil) - lihat catatan di server.js kenapa dihitung wall-clock, bukan usage time.
+     */
+    suspend fun redeemAccessBalance(token: String, minutes: Int): BalanceResult {
+        val body = JSONObject().put("minutes", minutes)
+        val json = request("POST", "/access-balance/redeem", token = token, body = body)
+        return json.toBalanceResult()
     }
 
     /** Dipoll berkala oleh DeviceLockService di perangkat anak. */
@@ -252,5 +263,11 @@ object PactioApi {
         submittedAt = if (has("submittedAt") && !isNull("submittedAt")) getString("submittedAt") else null,
         decisionNote = if (has("decisionNote") && !isNull("decisionNote")) getString("decisionNote") else null,
         decidedAt = if (has("decidedAt") && !isNull("decidedAt")) getString("decidedAt") else null
+    )
+
+    private fun JSONObject.toBalanceResult() = BalanceResult(
+        minutes = getInt("minutes"),
+        approvedTaskCount = getInt("approvedTaskCount"),
+        unlockUntil = optLong("unlockUntil", 0L)
     )
 }

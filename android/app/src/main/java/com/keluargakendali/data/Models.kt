@@ -55,7 +55,10 @@ data class FamilyResult(
 
 data class BalanceResult(
     val minutes: Int,
-    val approvedTaskCount: Int
+    val approvedTaskCount: Int,
+    // Timestamp epoch ms sampai kapan Mode Kunci nonaktif (0 = tidak sedang aktif) - hasil
+    // menukar saldo lewat POST /access-balance/redeem. Lihat DeviceLockService/ChildScreen.
+    val unlockUntil: Long = 0L
 )
 
 fun statusLabel(status: String): String = when (status) {

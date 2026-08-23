@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -60,9 +61,11 @@ private const val CAMERA_LOCK_SUPPRESSION_MS = 120_000L
 fun ChildScreen(
     state: UiState,
     onSubmitTask: (taskId: String, evidence: String, evidencePhotoDataUri: String?) -> Unit,
+    onRedeemBalance: (minutes: Int) -> Unit,
     onDismissMessage: () -> Unit
 ) {
     var submittingTask by remember { mutableStateOf<TaskDto?>(null) }
+    var showRedeemDialog by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         state.errorMessage?.let {
@@ -72,28 +75,12 @@ fun ChildScreen(
 
         DeviceLockController()
 
-        Card(
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary),
-            shape = RoundedCornerShape(24.dp)
-        ) {
-            Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Schedule, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Saldo Akses Hadiah", fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onPrimary)
-                }
-                Text(
-                    "${state.balanceMinutes} menit",
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = MaterialTheme.colorScheme.onPrimary
-                )
-                Text(
-                    "dari ${state.approvedTaskCount} tugas disetujui",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onPrimary
-                )
-            }
-        }
+        AccessBalanceCard(
+            balanceMinutes = state.balanceMinutes,
+            approvedTaskCount = state.approvedTaskCount,
+            unlockUntil = state.unlockUntil,
+            onGunakanWaktu = { showRedeemDialog = true }
+        )
 
         Spacer(Modifier.height(20.dp))
         Text("Tugas Kamu", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
@@ -122,6 +109,124 @@ fun ChildScreen(
             }
         )
     }
+
+    if (showRedeemDialog) {
+        RedeemMinutesDialog(
+            balanceMinutes = state.balanceMinutes,
+            loading = state.loading,
+            onDismiss = { showRedeemDialog = false },
+            onConfirm = { minutes ->
+                onRedeemBalance(minutes)
+                showRedeemDialog = false
+            }
+        )
+    }
+}
+
+/**
+ * Kartu saldo + tombol "Gunakan Waktu" untuk menukar saldo jadi jendela Mode Kunci
+ * nonaktif (lihat AppViewModel.redeemAccessBalance & POST /access-balance/redeem).
+ * Kalau sedang ada jendela aktif (unlockUntil di masa depan), tampilkan hitung mundurnya -
+ * dihitung ulang tiap detik dari wall-clock lokal, server tetap sumber kebenarannya (dicek
+ * ulang tiap kali layar dibuka/disegarkan lewat GET /access-balance & /lock-status).
+ */
+@Composable
+private fun AccessBalanceCard(
+    balanceMinutes: Int,
+    approvedTaskCount: Int,
+    unlockUntil: Long,
+    onGunakanWaktu: () -> Unit
+) {
+    var nowMillis by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(unlockUntil) {
+        while (unlockUntil > System.currentTimeMillis()) {
+            delay(1000)
+            nowMillis = System.currentTimeMillis()
+        }
+        nowMillis = System.currentTimeMillis()
+    }
+    val remainingMs = (unlockUntil - nowMillis).coerceAtLeast(0)
+    val unlockActive = remainingMs > 0
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary),
+        shape = RoundedCornerShape(24.dp)
+    ) {
+        Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Schedule, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary)
+                Spacer(Modifier.width(8.dp))
+                Text("Saldo Akses Hadiah", fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onPrimary)
+            }
+            Text(
+                "$balanceMinutes menit",
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onPrimary
+            )
+            Text(
+                "dari $approvedTaskCount tugas disetujui",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onPrimary
+            )
+            if (unlockActive) {
+                val totalSeconds = remainingMs / 1000
+                Text(
+                    "Akses aktif · sisa %d:%02d".format(totalSeconds / 60, totalSeconds % 60),
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
+            }
+            Spacer(Modifier.height(4.dp))
+            Button(
+                onClick = onGunakanWaktu,
+                enabled = balanceMinutes > 0,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.onPrimary,
+                    contentColor = MaterialTheme.colorScheme.primary
+                ),
+                modifier = Modifier.fillMaxWidth()
+            ) { Text(if (unlockActive) "Tambah Waktu" else "Gunakan Waktu") }
+        }
+    }
+}
+
+/** Dialog pilih jumlah menit yang mau ditukar dari saldo - lihat AccessBalanceCard. */
+@Composable
+private fun RedeemMinutesDialog(
+    balanceMinutes: Int,
+    loading: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: (minutes: Int) -> Unit
+) {
+    var input by remember { mutableStateOf(balanceMinutes.toString()) }
+    val minutes = input.toIntOrNull()
+    val valid = minutes != null && minutes in 1..balanceMinutes
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Gunakan Waktu") },
+        text = {
+            Column {
+                Text(
+                    "Saldo kamu $balanceMinutes menit. Berapa menit mau dipakai sekarang? Sisanya tetap tersimpan.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = input,
+                    onValueChange = { input = it.filter { c -> c.isDigit() } },
+                    label = { Text("Menit") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(onClick = { minutes?.let(onConfirm) }, enabled = !loading && valid) { Text("Gunakan") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Batal") } }
+    )
 }
 
 @Composable
