@@ -25,7 +25,13 @@ android {
 }
 
 dependencies {
-    val composeBom = platform("androidx.compose:compose-bom:2026.08.00")
+    // Compose BOM 2026.08.00 (Compose 1.12.0) mensyaratkan compileSdk 37 + AGP >=9.1.0
+    // secara internal (bukan aturan project ini) - dibuktikan gagal nyata di CI:
+    //   "requires ... compile against version 37 or later"
+    //   "requires Android Gradle plugin 9.1.0 or higher"
+    // Diturunkan ke 2026.04.01 (rilis April 2026, sebelum syarat compileSdk 37 berlaku)
+    // agar cocok dengan compileSdk 36 / AGP 9.0.1 yang sudah terbukti jalan di CI.
+    val composeBom = platform("androidx.compose:compose-bom:2026.04.01")
     implementation(composeBom)
     androidTestImplementation(composeBom)
     implementation("androidx.activity:activity-compose:1.13.0")
