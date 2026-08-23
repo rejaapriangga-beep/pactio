@@ -3,7 +3,9 @@ package com.keluargakendali.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -26,6 +28,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -44,24 +47,34 @@ fun StatusChip(status: String) {
     AssistChip(onClick = {}, label = { Text(statusLabel(status)) }, leadingIcon = { Icon(icon, contentDescription = null) })
 }
 
-/** Field password/PIN dengan tombol lihat/sembunyikan teks, dipakai di seluruh form auth. */
+/**
+ * Field password/PIN dengan tombol lihat/sembunyikan teks, dipakai di seluruh form auth.
+ * Sengaja TIDAK memakai slot `trailingIcon` bawaan OutlinedTextField (terbukti tidak
+ * tampil sama sekali di perangkat nyata pada versi Compose yang dipakai project ini) -
+ * tombolnya ditaruh sebagai elemen terpisah di sebelah field lewat Row biasa, yang jauh
+ * lebih sederhana dan pasti terlihat.
+ */
 @Composable
 fun PasswordField(value: String, onValueChange: (String) -> Unit, label: String, keyboardType: KeyboardType) {
     var visible by remember { mutableStateOf(false) }
-    OutlinedTextField(
-        value, onValueChange, label = { Text(label) },
-        visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
-        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
-        trailingIcon = {
-            IconButton(onClick = { visible = !visible }) {
-                Icon(
-                    if (visible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                    contentDescription = if (visible) "Sembunyikan" else "Tampilkan"
-                )
-            }
-        },
-        modifier = Modifier.fillMaxWidth()
-    )
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            label = { Text(label) },
+            visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+            singleLine = true,
+            modifier = Modifier.weight(1f)
+        )
+        Spacer(Modifier.width(4.dp))
+        IconButton(onClick = { visible = !visible }) {
+            Icon(
+                if (visible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                contentDescription = if (visible) "Sembunyikan" else "Tampilkan"
+            )
+        }
+    }
 }
 
 @Composable
