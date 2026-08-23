@@ -5,6 +5,10 @@ services:
     environment:
       PORT: 3030
       DATA_FILE: /app/storage/data.json
+      # Client ID OAuth "Web application" dari Google Cloud Console, dibaca dari file .env
+      # di sebelah docker-compose.yml ini (JANGAN commit .env ke repo). Ini bukan rahasia
+      # (Client ID memang publik), tapi tetap dijaga lewat env var, bukan di-hardcode di kode.
+      GOOGLE_WEB_CLIENT_ID: ${GOOGLE_WEB_CLIENT_ID}
     ports:
       - "127.0.0.1:3030:3030"
     volumes:

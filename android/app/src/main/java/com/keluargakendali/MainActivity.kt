@@ -79,6 +79,8 @@ private fun PactioApp() {
                         onRegisterParent = viewModel::registerParent,
                         onLoginParent = viewModel::loginParent,
                         onLoginChild = viewModel::loginChild,
+                        onLoginGoogle = { idToken -> viewModel.loginWithGoogle(idToken) },
+                        onGoogleError = viewModel::reportError,
                         onDismissMessage = viewModel::dismissMessages
                     )
 

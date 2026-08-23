@@ -1,10 +1,16 @@
 const http = require("http");
+const https = require("https");
 const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 
 const PORT = Number(process.env.PORT || 3030);
 const DATA_FILE = process.env.DATA_FILE || path.join(__dirname, "data.json");
+// Client ID OAuth tipe "Web application" dari Google Cloud Console. Ini BUKAN rahasia
+// (Client ID memang publik, sama seperti yang dibundel di aplikasi Android) — dipakai
+// di sini hanya untuk memeriksa klaim "aud" pada token ID Google. Kalau kosong, endpoint
+// login Google akan menolak dengan pesan jelas, bukan diam-diam gagal.
+const GOOGLE_WEB_CLIENT_ID = process.env.GOOGLE_WEB_CLIENT_ID || "";
 const sessions = new Map();
 
 function initialData() {
@@ -79,6 +85,82 @@ function familyFor(user) {
   return db.families.find((family) => family.id === user.familyId);
 }
 
+// --- Verifikasi Google Sign-In (Credential Manager di Android) ---------------------
+// Diimplementasikan manual dengan modul bawaan Node (https + crypto), TANPA dependency
+// npm eksternal (google-auth-library dsb.) — konsisten dengan aturan proyek ini.
+
+const GOOGLE_JWKS_URL = "https://www.googleapis.com/oauth2/v3/certs";
+let jwksCache = { keys: [], fetchedAt: 0 };
+
+function fetchJson(url) {
+  return new Promise((resolve, reject) => {
+    https.get(url, (response) => {
+      const chunks = [];
+      response.on("data", (chunk) => chunks.push(chunk));
+      response.on("end", () => {
+        try { resolve(JSON.parse(Buffer.concat(chunks).toString("utf8"))); }
+        catch (error) { reject(error); }
+      });
+    }).on("error", reject);
+  });
+}
+
+async function googleJwks(forceRefresh = false) {
+  const oneHour = 60 * 60 * 1000;
+  if (!forceRefresh && jwksCache.keys.length && Date.now() - jwksCache.fetchedAt < oneHour) return jwksCache.keys;
+  const data = await fetchJson(GOOGLE_JWKS_URL);
+  jwksCache = { keys: data.keys || [], fetchedAt: Date.now() };
+  return jwksCache.keys;
+}
+
+function base64UrlDecode(value) {
+  return Buffer.from(value.replace(/-/g, "+").replace(/_/g, "/"), "base64");
+}
+
+// Memverifikasi token ID Google: tanda tangan RS256 lewat kunci publik JWKS Google,
+// lalu klaim issuer/audience/kedaluwarsa/email. Melempar Error dengan pesan yang aman
+// ditampilkan ke pengguna kalau ada yang tidak valid.
+async function verifyGoogleIdToken(idToken) {
+  if (!GOOGLE_WEB_CLIENT_ID) throw new Error("Login Google belum dikonfigurasi di server.");
+  const parts = String(idToken || "").split(".");
+  if (parts.length !== 3) throw new Error("Token Google tidak valid.");
+  const [headerPart, payloadPart, signaturePart] = parts;
+
+  let header, payload;
+  try {
+    header = JSON.parse(base64UrlDecode(headerPart).toString("utf8"));
+    payload = JSON.parse(base64UrlDecode(payloadPart).toString("utf8"));
+  } catch {
+    throw new Error("Token Google tidak dapat dibaca.");
+  }
+
+  let keys = await googleJwks();
+  let jwk = keys.find((key) => key.kid === header.kid);
+  if (!jwk) {
+    // Google merotasi kunci secara berkala; kalau kid tidak ditemukan, coba sekali lagi
+    // dengan memaksa refresh sebelum menyerah.
+    keys = await googleJwks(true);
+    jwk = keys.find((key) => key.kid === header.kid);
+  }
+  if (!jwk) throw new Error("Kunci verifikasi Google tidak ditemukan.");
+
+  const publicKey = crypto.createPublicKey({ key: jwk, format: "jwk" });
+  const verifier = crypto.createVerify("RSA-SHA256");
+  verifier.update(`${headerPart}.${payloadPart}`);
+  const signatureValid = verifier.verify(publicKey, base64UrlDecode(signaturePart));
+  if (!signatureValid) throw new Error("Tanda tangan token Google tidak valid.");
+
+  if (payload.iss !== "https://accounts.google.com" && payload.iss !== "accounts.google.com") {
+    throw new Error("Token Google berasal dari sumber yang tidak dikenali.");
+  }
+  if (payload.aud !== GOOGLE_WEB_CLIENT_ID) throw new Error("Token Google bukan untuk aplikasi ini.");
+  if (!payload.exp || Date.now() / 1000 > payload.exp) throw new Error("Token Google sudah kedaluwarsa, coba masuk lagi.");
+  if (payload.email_verified === false) throw new Error("Email akun Google ini belum terverifikasi.");
+  if (!payload.email || !payload.sub) throw new Error("Token Google tidak memuat email atau ID pengguna.");
+
+  return payload;
+}
+
 function taskForUser(task, user) {
   return task.familyId === user.familyId && (user.role === "parent" || task.childId === user.id);
 }
@@ -107,8 +189,50 @@ async function route(req, res) {
     const email = requireText(body.email, "Email").toLowerCase();
     const password = requireText(body.password, "Kata sandi");
     const user = db.users.find((item) => item.role === "parent" && item.email === email);
-    if (!user || !verify(password, user.passwordHash)) return send(res, 401, { error: "Email atau kata sandi salah." });
+    // user.passwordHash bisa kosong kalau akun ini dibuat lewat Google Sign-In (belum pernah
+    // set kata sandi) — jangan sampai verify() dipanggil dengan stored=undefined dan crash.
+    if (!user || !user.passwordHash || !verify(password, user.passwordHash)) {
+      return send(res, 401, { error: "Email atau kata sandi salah." });
+    }
     return send(res, 200, { token: createSession(publicUser(user)), user: publicUser(user) });
+  }
+
+  if (req.method === "POST" && pathname === "/auth/google-parent") {
+    const body = await bodyOf(req);
+    const idToken = requireText(body.idToken, "Token Google");
+    let payload;
+    try {
+      payload = await verifyGoogleIdToken(idToken);
+    } catch (error) {
+      const notConfigured = error.message.includes("belum dikonfigurasi");
+      return send(res, notConfigured ? 500 : 401, { error: error.message });
+    }
+    const email = String(payload.email).toLowerCase();
+    const googleId = payload.sub;
+
+    let user = db.users.find((item) => item.role === "parent" && item.googleId === googleId);
+    if (!user) user = db.users.find((item) => item.role === "parent" && item.email === email);
+
+    if (user) {
+      // Akun email/password yang sama sudah ada -> tautkan googleId supaya login berikutnya lebih cepat.
+      if (!user.googleId) { user.googleId = googleId; save(); }
+      return send(res, 200, { token: createSession(publicUser(user)), user: publicUser(user) });
+    }
+
+    // Belum ada akun sama sekali untuk akun Google ini -> buat keluarga baru otomatis.
+    // Nama keluarga sengaja diturunkan dari nama profil Google (bukan diminta lewat form
+    // tambahan) supaya alur Google Sign-In tetap satu langkah; bisa diubah lagi nanti kalau
+    // fitur ubah nama keluarga sudah ada.
+    const displayName = requireText(payload.name || payload.given_name || payload.email, "Nama orang tua");
+    const familyName = requireText(body.familyName || `Keluarga ${payload.given_name || displayName}`, "Nama keluarga");
+    const family = { id: id("family"), name: familyName, code: crypto.randomBytes(3).toString("hex").toUpperCase() };
+    const newUser = { id: id("user"), familyId: family.id, role: "parent", name: displayName, email, googleId, passwordHash: null };
+    db.families.push(family); db.users.push(newUser); save();
+    return send(res, 201, {
+      token: createSession(publicUser(newUser)),
+      user: publicUser(newUser),
+      family: { id: family.id, name: family.name, code: family.code }
+    });
   }
 
   if (req.method === "POST" && pathname === "/auth/login-child") {

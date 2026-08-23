@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.Login
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -29,6 +30,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -36,10 +38,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.credentials.exceptions.GetCredentialCancellationException
+import androidx.credentials.exceptions.NoCredentialException
+import com.keluargakendali.data.GoogleAuthHelper
+import kotlinx.coroutines.launch
 
 /** Sub-langkah alur masuk orang tua — hanya muncul lewat link kecil di layar landing anak. */
 private enum class ParentStep { NONE, MENU, LOGIN, REGISTER }
@@ -51,9 +58,31 @@ fun AuthScreen(
     onRegisterParent: (familyName: String, name: String, email: String, password: String) -> Unit,
     onLoginParent: (email: String, password: String) -> Unit,
     onLoginChild: (familyCode: String, pin: String) -> Unit,
+    onLoginGoogle: (idToken: String) -> Unit,
+    onGoogleError: (String) -> Unit,
     onDismissMessage: () -> Unit
 ) {
     var parentStep by rememberSaveable { mutableStateOf(ParentStep.NONE) }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    // Memanggil Credential Manager (dialog akun bawaan sistem), lalu meneruskan token ID
+    // mentahnya ke backend untuk diverifikasi — Android sendiri tidak pernah memutuskan
+    // login berhasil atau tidak.
+    fun launchGoogleSignIn() {
+        scope.launch {
+            try {
+                val idToken = GoogleAuthHelper.requestIdToken(context)
+                onLoginGoogle(idToken)
+            } catch (error: GetCredentialCancellationException) {
+                // Pengguna membatalkan sendiri lewat dialog pemilih akun — bukan error.
+            } catch (error: NoCredentialException) {
+                onGoogleError("Tidak ada akun Google di HP ini. Tambahkan akun Google lewat Pengaturan terlebih dahulu.")
+            } catch (error: Exception) {
+                onGoogleError(error.message ?: "Gagal masuk dengan Google.")
+            }
+        }
+    }
 
     Box(Modifier.fillMaxSize()) {
         ChildLandingScreen(
@@ -72,7 +101,8 @@ fun AuthScreen(
                 when (parentStep) {
                     ParentStep.MENU -> ParentMenuSheet(
                         onSelectLogin = { parentStep = ParentStep.LOGIN },
-                        onSelectRegister = { parentStep = ParentStep.REGISTER }
+                        onSelectRegister = { parentStep = ParentStep.REGISTER },
+                        onSelectGoogle = ::launchGoogleSignIn
                     )
                     ParentStep.LOGIN -> ParentSheetForm(state = state, onDismissMessage = onDismissMessage) {
                         LoginParentForm(loading = state.loading, onSubmit = onLoginParent)
@@ -169,7 +199,7 @@ private fun ChildLandingScreen(
 }
 
 @Composable
-private fun ParentMenuSheet(onSelectLogin: () -> Unit, onSelectRegister: () -> Unit) {
+private fun ParentMenuSheet(onSelectLogin: () -> Unit, onSelectRegister: () -> Unit, onSelectGoogle: () -> Unit) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
         Column {
             Text("Akses Orang Tua", style = MaterialTheme.typography.titleLarge)
@@ -182,11 +212,19 @@ private fun ParentMenuSheet(onSelectLogin: () -> Unit, onSelectRegister: () -> U
         }
 
         ParentMenuOption(
+            icon = Icons.Default.Login,
+            iconContainer = MaterialTheme.colorScheme.secondaryContainer,
+            iconTint = MaterialTheme.colorScheme.onSecondaryContainer,
+            title = "Lanjut dengan Google",
+            subtitle = "Masuk, atau daftar otomatis kalau akunnya baru",
+            onClick = onSelectGoogle
+        )
+        ParentMenuOption(
             icon = Icons.Default.Key,
             iconContainer = MaterialTheme.colorScheme.primaryContainer,
             iconTint = MaterialTheme.colorScheme.onPrimaryContainer,
             title = "Masuk sebagai Orang Tua",
-            subtitle = "Sudah punya akun keluarga",
+            subtitle = "Pakai email dan kata sandi",
             onClick = onSelectLogin
         )
         ParentMenuOption(
@@ -194,7 +232,7 @@ private fun ParentMenuSheet(onSelectLogin: () -> Unit, onSelectRegister: () -> U
             iconContainer = MaterialTheme.colorScheme.tertiaryContainer,
             iconTint = MaterialTheme.colorScheme.onTertiaryContainer,
             title = "Daftar Keluarga Baru",
-            subtitle = "Buat akun keluarga pertama kamu",
+            subtitle = "Buat akun keluarga pakai email sendiri",
             onClick = onSelectRegister
         )
     }
