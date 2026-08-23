@@ -173,6 +173,28 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _state.update { it.copy(infoMessage = "Data diperbarui.") }
     }
 
+    /**
+     * Poll berkala di background (dipanggil dari MainActivity selama ada yang login) -
+     * supaya tugas baru, status disetujui/ditolak, dsb dari PERANGKAT LAIN (bukan HP yang
+     * sama) muncul otomatis tanpa perlu tekan refresh manual. Beda dengan LockStatusHint
+     * yang cuma bisa "membisikkan" info instan DALAM proses yang sama di satu HP - untuk
+     * info dari HP lain, satu-satunya cara adalah tanya ke server, makanya di-poll begini.
+     *
+     * Sengaja diam-diam: TIDAK menyentuh loading/errorMessage/infoMessage, supaya tidak
+     * mengganggu kalau pengguna lagi mengisi form, dan kegagalan sesekali (mis. jaringan
+     * hiccup) tidak perlu ditampilkan sebagai error - otomatis dicoba lagi siklus berikutnya.
+     */
+    fun silentRefresh() {
+        val token = _state.value.token ?: return
+        viewModelScope.launch {
+            runCatching {
+                loadFamily(token)
+                loadTasks(token)
+                loadBalanceIfChild(token)
+            }
+        }
+    }
+
     fun dismissMessages() {
         _state.update { it.copy(errorMessage = null, infoMessage = null) }
     }

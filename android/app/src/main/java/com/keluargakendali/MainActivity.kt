@@ -39,6 +39,10 @@ import com.keluargakendali.ui.ChildScreen
 import com.keluargakendali.ui.ParentScreen
 import com.keluargakendali.ui.PasswordField
 import com.keluargakendali.ui.theme.PactioTheme
+import kotlinx.coroutines.delay
+
+/** Jarak antar poll otomatis di background - lihat AppViewModel.silentRefresh. */
+private const val AUTO_REFRESH_MS = 8_000L
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -67,6 +71,17 @@ private fun PactioApp() {
     var showChildLogoutDialog by remember { mutableStateOf(false) }
     LaunchedEffect(state.currentUser) {
         if (state.currentUser == null) showChildLogoutDialog = false
+    }
+
+    // Poll berkala selagi ada yang login - supaya tugas baru dari orang tua, atau tugas
+    // yang baru dikirim/disetujui/ditolak dari HP LAIN, muncul otomatis tanpa perlu tekan
+    // refresh manual. Lihat catatan lengkap di AppViewModel.silentRefresh.
+    LaunchedEffect(state.currentUser?.id) {
+        if (state.currentUser == null) return@LaunchedEffect
+        while (true) {
+            delay(AUTO_REFRESH_MS)
+            viewModel.silentRefresh()
+        }
     }
 
     PactioTheme {
