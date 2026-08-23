@@ -67,7 +67,7 @@ fun ChildScreen(
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(state.tasks, key = { it.id }) { task ->
-                    ChildTaskCard(task = task, onKirim = { submittingTask = task })
+                    ChildTaskCard(task = task, loading = state.loading, onKirim = { submittingTask = task })
                 }
             }
         }
@@ -88,7 +88,7 @@ fun ChildScreen(
 }
 
 @Composable
-private fun ChildTaskCard(task: TaskDto, onKirim: () -> Unit) {
+private fun ChildTaskCard(task: TaskDto, loading: Boolean, onKirim: () -> Unit) {
     Card {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -107,7 +107,7 @@ private fun ChildTaskCard(task: TaskDto, onKirim: () -> Unit) {
             }
             if (task.status == "assigned" || task.status == "rejected") {
                 Spacer(Modifier.height(12.dp))
-                Button(onClick = onKirim, modifier = Modifier.fillMaxWidth()) {
+                Button(onClick = onKirim, enabled = !loading, modifier = Modifier.fillMaxWidth()) {
                     Text("Kirim sebagai selesai")
                 }
             }

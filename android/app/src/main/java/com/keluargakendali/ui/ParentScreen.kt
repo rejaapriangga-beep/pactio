@@ -39,7 +39,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.keluargakendali.data.TaskDto
 import com.keluargakendali.data.UserDto
@@ -90,7 +89,12 @@ fun ParentScreen(
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(waiting, key = { it.id }) { task ->
-                    WaitingTaskCard(task = task, childName = state.children.find { it.id == task.childId }?.name, onDecide = onDecide)
+                    WaitingTaskCard(
+                        task = task,
+                        childName = state.children.find { it.id == task.childId }?.name,
+                        loading = state.loading,
+                        onDecide = onDecide
+                    )
                 }
             }
         }
@@ -126,7 +130,9 @@ fun ParentScreen(
 }
 
 @Composable
-private fun WaitingTaskCard(task: TaskDto, childName: String?, onDecide: (String, Boolean, String) -> Unit) {
+private fun WaitingTaskCard(task: TaskDto, childName: String?, loading: Boolean, onDecide: (String, Boolean, String) -> Unit) {
+    var showRejectDialog by remember { mutableStateOf(false) }
+
     Card {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
             Text(task.title, fontWeight = FontWeight.Bold)
@@ -138,11 +144,48 @@ private fun WaitingTaskCard(task: TaskDto, childName: String?, onDecide: (String
             }
             Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { onDecide(task.id, true, "") }, modifier = Modifier.weight(1f)) { Text("Setujui") }
-                OutlinedButton(onClick = { onDecide(task.id, false, "") }, modifier = Modifier.weight(1f)) { Text("Tolak") }
+                Button(onClick = { onDecide(task.id, true, "") }, enabled = !loading, modifier = Modifier.weight(1f)) { Text("Setujui") }
+                OutlinedButton(onClick = { showRejectDialog = true }, enabled = !loading, modifier = Modifier.weight(1f)) { Text("Tolak") }
             }
         }
     }
+
+    if (showRejectDialog) {
+        RejectTaskDialog(
+            taskTitle = task.title,
+            loading = loading,
+            onDismiss = { showRejectDialog = false },
+            onConfirm = { note -> onDecide(task.id, false, note); showRejectDialog = false }
+        )
+    }
+}
+
+@Composable
+private fun RejectTaskDialog(taskTitle: String, loading: Boolean, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
+    var note by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Tolak \"$taskTitle\"?") },
+        text = {
+            Column {
+                Text(
+                    "Anak akan melihat tugas ini perlu diulang. Beri tahu alasannya (opsional).",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    note, { note = it },
+                    label = { Text("Catatan untuk anak") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(onClick = { onConfirm(note.trim()) }, enabled = !loading) { Text("Tolak Tugas") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Batal") } }
+    )
 }
 
 @Composable
@@ -170,12 +213,7 @@ private fun AddChildDialog(loading: Boolean, onDismiss: () -> Unit, onSubmit: (S
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(name, { name = it }, label = { Text("Nama anak") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(
-                    pin, { pin = it.filter { c -> c.isDigit() }.take(8) }, label = { Text("PIN (4-8 digit)") },
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-                    modifier = Modifier.fillMaxWidth()
-                )
+                PasswordField(pin, { pin = it.filter { c -> c.isDigit() }.take(8) }, "PIN (4-8 digit)", KeyboardType.NumberPassword)
             }
         },
         confirmButton = {

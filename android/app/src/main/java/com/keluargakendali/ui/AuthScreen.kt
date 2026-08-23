@@ -23,7 +23,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -80,12 +79,7 @@ private fun RegisterParentForm(loading: Boolean, onSubmit: (String, String, Stri
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
             modifier = Modifier.fillMaxWidth()
         )
-        OutlinedTextField(
-            password, { password = it }, label = { Text("Kata sandi (minimal 8 karakter)") },
-            visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-            modifier = Modifier.fillMaxWidth()
-        )
+        PasswordField(password, { password = it }, "Kata sandi (minimal 8 karakter)", KeyboardType.Password)
         Button(
             onClick = { onSubmit(familyName.trim(), name.trim(), email.trim(), password) },
             enabled = !loading && familyName.isNotBlank() && name.isNotBlank() && email.isNotBlank() && password.length >= 8,
@@ -105,12 +99,7 @@ private fun LoginParentForm(loading: Boolean, onSubmit: (String, String) -> Unit
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
             modifier = Modifier.fillMaxWidth()
         )
-        OutlinedTextField(
-            password, { password = it }, label = { Text("Kata sandi") },
-            visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-            modifier = Modifier.fillMaxWidth()
-        )
+        PasswordField(password, { password = it }, "Kata sandi", KeyboardType.Password)
         Button(
             onClick = { onSubmit(email.trim(), password) },
             enabled = !loading && email.isNotBlank() && password.isNotBlank(),
@@ -127,12 +116,7 @@ private fun LoginChildForm(loading: Boolean, onSubmit: (String, String) -> Unit)
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Minta kode keluarga ke orang tuamu.", style = MaterialTheme.typography.bodySmall)
         OutlinedTextField(familyCode, { familyCode = it }, label = { Text("Kode keluarga") }, modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(
-            pin, { pin = it }, label = { Text("PIN") },
-            visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-            modifier = Modifier.fillMaxWidth()
-        )
+        PasswordField(pin, { pin = it }, "PIN", KeyboardType.NumberPassword)
         Button(
             onClick = { onSubmit(familyCode.trim(), pin) },
             enabled = !loading && familyCode.isNotBlank() && pin.isNotBlank(),

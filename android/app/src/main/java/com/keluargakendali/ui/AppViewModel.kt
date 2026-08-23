@@ -71,28 +71,33 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun addChild(name: String, pin: String) = requireToken { token ->
         PactioApi.addChild(token, name, pin)
         loadFamily(token)
+        _state.update { it.copy(infoMessage = "Profil anak berhasil ditambahkan.") }
     }
 
     fun createTask(childId: String, title: String, description: String, rewardMinutes: Int) = requireToken { token ->
         PactioApi.createTask(token, childId, title, description, rewardMinutes)
         loadTasks(token)
+        _state.update { it.copy(infoMessage = "Tugas berhasil dibuat.") }
     }
 
     fun submitTask(taskId: String, evidence: String) = requireToken { token ->
         PactioApi.submitTask(token, taskId, evidence)
         loadTasks(token)
         loadBalanceIfChild(token)
+        _state.update { it.copy(infoMessage = "Tugas berhasil dikirim, menunggu persetujuan orang tua.") }
     }
 
     fun decideTask(taskId: String, approved: Boolean, note: String) = requireToken { token ->
         PactioApi.decideTask(token, taskId, approved, note)
         loadTasks(token)
+        _state.update { it.copy(infoMessage = if (approved) "Tugas disetujui." else "Tugas ditolak.") }
     }
 
     fun refresh() = requireToken { token ->
         loadFamily(token)
         loadTasks(token)
         loadBalanceIfChild(token)
+        _state.update { it.copy(infoMessage = "Data diperbarui.") }
     }
 
     fun dismissMessages() {
@@ -105,13 +110,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         refreshAll()
     }
 
-    private fun refreshAll() {
-        val token = _state.value.token ?: return
-        viewModelScope.launch {
-            loadFamily(token)
-            loadTasks(token)
-            loadBalanceIfChild(token)
-        }
+    /**
+     * Dipakai setelah login/register dan saat memulihkan sesi dari token tersimpan.
+     * Sengaja lewat launchGuarded (bukan viewModelScope.launch polos) supaya kalau token
+     * ternyata sudah tidak valid lagi di backend (mis. server di-restart, sesi in-memory
+     * hilang - lihat catatan keamanan backend) errornya ditangani rapi (logout otomatis),
+     * bukan bikin aplikasi crash saat baru dibuka.
+     */
+    private fun refreshAll() = launchGuarded {
+        val token = _state.value.token ?: return@launchGuarded
+        loadFamily(token)
+        loadTasks(token)
+        loadBalanceIfChild(token)
     }
 
     private suspend fun loadFamily(token: String) {
@@ -138,7 +148,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun launchGuarded(block: suspend () -> Unit) {
         viewModelScope.launch {
-            _state.update { it.copy(loading = true, errorMessage = null) }
+            _state.update { it.copy(loading = true, errorMessage = null, infoMessage = null) }
             try {
                 block()
             } catch (error: ApiException.Unauthorized) {
