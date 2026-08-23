@@ -11,6 +11,7 @@ import android.content.Intent
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.os.IBinder
+import android.util.Log
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
@@ -47,14 +48,19 @@ class DeviceLockService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        Log.d(TAG, "onCreate")
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         startForeground(NOTIFICATION_ID, buildNotification())
         pollJob = scope.launch { pollLoop() }
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        Log.d(TAG, "onStartCommand")
+        return START_STICKY
+    }
 
     override fun onDestroy() {
+        Log.d(TAG, "onDestroy")
         pollJob?.cancel()
         removeOverlay()
         super.onDestroy()
@@ -76,11 +82,15 @@ class DeviceLockService : Service() {
 
             val now = System.currentTimeMillis()
             if (now - lastStatusCheckAt >= STATUS_POLL_MS) {
-                locked = runCatching { PactioApi.getLockStatus(token) }.getOrDefault(locked)
+                val fetched = runCatching { PactioApi.getLockStatus(token) }
+                Log.d(TAG, "status check: result=$fetched previousLocked=$locked")
+                locked = fetched.getOrDefault(locked)
                 lastStatusCheckAt = now
             }
 
-            if (locked && !isPactioForeground()) showOverlay() else removeOverlay()
+            val foreground = isPactioForeground()
+            Log.d(TAG, "poll: locked=$locked pactioForeground=$foreground overlayShown=${overlayView != null}")
+            if (locked && !foreground) showOverlay() else removeOverlay()
 
             delay(if (locked) FOREGROUND_POLL_MS else STATUS_POLL_MS)
         }
@@ -100,11 +110,13 @@ class DeviceLockService : Service() {
                 lastForegroundPackage = event.packageName
             }
         }
+        Log.d(TAG, "isPactioForeground: lastForegroundPackage=$lastForegroundPackage (self=$packageName)")
         return lastForegroundPackage == packageName
     }
 
     private fun showOverlay() {
         if (overlayView != null) return
+        Log.d(TAG, "showOverlay: adding view")
         val context = this
 
         val view = LinearLayout(context).apply {
@@ -144,12 +156,19 @@ class DeviceLockService : Service() {
             WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT
         )
-        runCatching { windowManager?.addView(view, params) }.onSuccess { overlayView = view }
+        runCatching { windowManager?.addView(view, params) }
+            .onSuccess {
+                overlayView = view
+                Log.d(TAG, "showOverlay: addView succeeded")
+            }
+            .onFailure { error -> Log.e(TAG, "showOverlay: addView failed", error) }
     }
 
     private fun removeOverlay() {
         val view = overlayView ?: return
+        Log.d(TAG, "removeOverlay: removing view")
         runCatching { windowManager?.removeView(view) }
+            .onFailure { error -> Log.e(TAG, "removeOverlay: removeView failed", error) }
         overlayView = null
     }
 
@@ -165,6 +184,7 @@ class DeviceLockService : Service() {
     }
 
     companion object {
+        private const val TAG = "DeviceLockService"
         private const val NOTIFICATION_ID = 4201
         private const val CHANNEL_ID = "device_lock"
         private const val STATUS_POLL_MS = 15_000L
