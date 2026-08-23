@@ -11,8 +11,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -47,19 +48,31 @@ fun ChildScreen(
             Spacer(Modifier.height(12.dp))
         }
 
-        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
-            Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.CheckCircle, contentDescription = null)
-                Spacer(Modifier.width(12.dp))
-                Column {
-                    Text("Saldo akses hadiah", fontWeight = FontWeight.Bold)
-                    Text("${state.balanceMinutes} menit dari ${state.approvedTaskCount} tugas disetujui")
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary),
+            shape = RoundedCornerShape(24.dp)
+        ) {
+            Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Schedule, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Saldo Akses Hadiah", fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onPrimary)
                 }
+                Text(
+                    "${state.balanceMinutes} menit",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
+                Text(
+                    "dari ${state.approvedTaskCount} tugas disetujui",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
             }
         }
 
-        Spacer(Modifier.height(16.dp))
-        Text("Tugas kamu", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(20.dp))
+        Text("Tugas Kamu", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
         Spacer(Modifier.height(8.dp))
 
         if (state.tasks.isEmpty()) {
@@ -107,7 +120,7 @@ private fun ChildTaskCard(task: TaskDto, loading: Boolean, onKirim: () -> Unit) 
             }
             if (task.status == "assigned" || task.status == "rejected") {
                 Spacer(Modifier.height(12.dp))
-                Button(onClick = onKirim, enabled = !loading, modifier = Modifier.fillMaxWidth()) {
+                Button(onClick = onKirim, enabled = !loading, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
                     Text("Kirim sebagai selesai")
                 }
             }

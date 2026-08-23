@@ -1,0 +1,7 @@
+Font Sora dan Plus Jakarta Sans di folder ini diunduh dari repositori resmi
+Google Fonts (github.com/google/fonts) dan didistribusikan di bawah
+SIL Open Font License 1.1 (OFL) — lisensi yang mengizinkan penggunaan,
+modifikasi, dan distribusi bebas termasuk dalam aplikasi komersial,
+selama tidak dijual terpisah sebagai font.
+
+Teks lengkap lisensi: https://openfontlicense.org/documents/ofl.txt

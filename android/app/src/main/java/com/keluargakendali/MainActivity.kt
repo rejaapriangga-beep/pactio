@@ -12,7 +12,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -31,6 +30,7 @@ import com.keluargakendali.ui.AppViewModel
 import com.keluargakendali.ui.AuthScreen
 import com.keluargakendali.ui.ChildScreen
 import com.keluargakendali.ui.ParentScreen
+import com.keluargakendali.ui.theme.PactioTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -53,21 +53,23 @@ private fun PactioApp() {
         viewModel.dismissMessages()
     }
 
-    MaterialTheme {
+    PactioTheme {
         Scaffold(
             snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
-                TopAppBar(
-                    title = { Text("Pactio") },
-                    actions = {
-                        if (state.currentUser != null) {
+                // Layar landing (belum login) punya header sendiri yang lebih ekspresif —
+                // TopAppBar generik ini hanya untuk dashboard orang tua/anak setelah login.
+                if (state.currentUser != null) {
+                    TopAppBar(
+                        title = { Text("Pactio") },
+                        actions = {
                             IconButton(onClick = viewModel::refresh) {
                                 Icon(Icons.Default.Refresh, contentDescription = "Segarkan data")
                             }
                             TextButton(onClick = viewModel::logout) { Text("Keluar") }
                         }
-                    }
-                )
+                    )
+                }
             }
         ) { padding ->
             Box(Modifier.fillMaxWidth().padding(padding)) {

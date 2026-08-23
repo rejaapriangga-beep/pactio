@@ -7,14 +7,16 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
-import androidx.compose.material.icons.filled.Pending
+import androidx.compose.material.icons.filled.HourglassTop
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -36,15 +38,32 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.keluargakendali.data.statusLabel
 
+/** Chip status tugas — berwarna per status (hijau/emas/merah/netral), sesuai mockup. */
 @Composable
 fun StatusChip(status: String) {
     val icon = when (status) {
         "approved" -> Icons.Default.CheckCircle
-        "submitted" -> Icons.Default.Pending
+        "submitted" -> Icons.Default.HourglassTop
         "rejected" -> Icons.Default.Error
-        else -> Icons.Default.Pending
+        else -> Icons.Default.HourglassTop
     }
-    AssistChip(onClick = {}, label = { Text(statusLabel(status)) }, leadingIcon = { Icon(icon, contentDescription = null) })
+    val (container, content) = when (status) {
+        "approved" -> MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
+        "submitted" -> MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
+        "rejected" -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
+        else -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    AssistChip(
+        onClick = {},
+        label = { Text(statusLabel(status)) },
+        leadingIcon = { Icon(icon, contentDescription = null) },
+        shape = RoundedCornerShape(999.dp),
+        colors = AssistChipDefaults.assistChipColors(
+            containerColor = container,
+            labelColor = content,
+            leadingIconContentColor = content
+        )
+    )
 }
 
 /**
@@ -65,6 +84,7 @@ fun PasswordField(value: String, onValueChange: (String) -> Unit, label: String,
             visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
             singleLine = true,
+            shape = RoundedCornerShape(14.dp),
             modifier = Modifier.weight(1f)
         )
         Spacer(Modifier.width(4.dp))

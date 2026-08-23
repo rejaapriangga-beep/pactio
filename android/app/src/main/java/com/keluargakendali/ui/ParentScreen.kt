@@ -1,5 +1,6 @@
 package com.keluargakendali.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Group
@@ -37,6 +39,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -60,22 +63,33 @@ fun ParentScreen(
             Spacer(Modifier.height(12.dp))
         }
 
-        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
-            Column(Modifier.fillMaxWidth().padding(16.dp)) {
-                Text(state.family?.name ?: "Keluarga", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                if (state.family?.code != null) {
-                    Text("Kode keluarga untuk anak: ${state.family.code}", style = MaterialTheme.typography.bodyMedium)
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            shape = RoundedCornerShape(22.dp)
+        ) {
+            Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(state.family?.name ?: "Keluarga", fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.titleMedium)
+                    if (state.family?.code != null) {
+                        Text(
+                            state.family.code,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(MaterialTheme.colorScheme.primaryContainer)
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        )
+                    }
                 }
-                Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     state.children.forEach { child ->
                         AssistChip(onClick = {}, label = { Text(child.name) }, leadingIcon = { Icon(Icons.Default.Group, contentDescription = null) })
                     }
                 }
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { showAddChild = true }) { Text("Tambah Anak") }
-                    Button(onClick = { showCreateTask = true }, enabled = state.children.isNotEmpty()) { Text("Buat Tugas") }
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedButton(onClick = { showAddChild = true }, shape = RoundedCornerShape(14.dp), modifier = Modifier.weight(1f)) { Text("+ Tambah Anak") }
+                    Button(onClick = { showCreateTask = true }, enabled = state.children.isNotEmpty(), shape = RoundedCornerShape(14.dp), modifier = Modifier.weight(1f)) { Text("Buat Tugas") }
                 }
             }
         }
@@ -144,8 +158,8 @@ private fun WaitingTaskCard(task: TaskDto, childName: String?, loading: Boolean,
             }
             Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { onDecide(task.id, true, "") }, enabled = !loading, modifier = Modifier.weight(1f)) { Text("Setujui") }
-                OutlinedButton(onClick = { showRejectDialog = true }, enabled = !loading, modifier = Modifier.weight(1f)) { Text("Tolak") }
+                Button(onClick = { onDecide(task.id, true, "") }, enabled = !loading, shape = RoundedCornerShape(14.dp), modifier = Modifier.weight(1f)) { Text("Setujui") }
+                OutlinedButton(onClick = { showRejectDialog = true }, enabled = !loading, shape = RoundedCornerShape(14.dp), modifier = Modifier.weight(1f)) { Text("Tolak") }
             }
         }
     }
