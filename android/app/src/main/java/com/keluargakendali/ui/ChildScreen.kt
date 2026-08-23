@@ -47,10 +47,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.keluargakendali.data.TaskDto
+import com.keluargakendali.service.AppForegroundState
 import com.keluargakendali.service.DeviceLockPermissions
 import com.keluargakendali.service.DeviceLockService
 import kotlinx.coroutines.delay
 import java.io.ByteArrayOutputStream
+
+/** Jaring pengaman kalau hasil kamera tidak pernah kembali - lihat AppForegroundState.suppressLockFor. */
+private const val CAMERA_LOCK_SUPPRESSION_MS = 120_000L
 
 @Composable
 fun ChildScreen(
@@ -161,7 +165,12 @@ private fun SubmitEvidenceDialog(
     // Memanggil aplikasi kamera bawaan sistem lewat Activity Result API resmi Android —
     // TIDAK butuh izin CAMERA (didelegasikan ke aplikasi kamera), transparan buat pengguna
     // (dialog kamera asli yang tampil, bukan capture tersembunyi).
+    //
+    // suppressLockFor/clearSuppression: kalau Mode Kunci aktif, tanpa ini overlay kunci akan
+    // ikut menutupi aplikasi Kamera juga begitu ia tampil di depan (karena bukan Pactio) —
+    // padahal ini delegasi resmi dari Pactio sendiri, bukan anak membuka aplikasi lain.
     val takePicture = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap ->
+        AppForegroundState.clearSuppression()
         if (bitmap != null) photo = bitmap
     }
 
@@ -192,7 +201,13 @@ private fun SubmitEvidenceDialog(
                     )
                     Spacer(Modifier.height(8.dp))
                 }
-                OutlinedButton(onClick = { takePicture.launch(null) }, modifier = Modifier.fillMaxWidth()) {
+                OutlinedButton(
+                    onClick = {
+                        AppForegroundState.suppressLockFor(CAMERA_LOCK_SUPPRESSION_MS)
+                        takePicture.launch(null)
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     Icon(Icons.Default.PhotoCamera, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
                     Text(if (currentPhoto == null) "Ambil Foto" else "Ambil Ulang Foto")
