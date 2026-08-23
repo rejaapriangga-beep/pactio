@@ -1,6 +1,23 @@
 # Build APK Debug — Pactio Android
 
-## Kenapa build tidak dijalankan otomatis di sesi Claude Code ini
+## ✅ Status: build APK debug BERHASIL (terverifikasi nyata di CI)
+
+GitHub Actions run [#5](https://github.com/rejaapriangga-beep/pactio/actions/runs/32631827679)
+selesai dengan sukses dan menghasilkan artifact `pactio-debug-apk` (18.6 MB). Perjalanan
+sampai ke sana melewati 4 kegagalan nyata yang masing-masing diperbaiki berdasarkan pesan
+error asli (bukan tebakan) — riwayatnya didokumentasikan di bagian bawah untuk referensi:
+
+| Run | Masalah nyata | Perbaikan |
+|---|---|---|
+| #1 | `platforms;android-37` tidak ditemukan | `compileSdk` 37→36 |
+| #2 | Gradle 8.14.3 < minimum AGP 9.0.1 (butuh 9.1.0) | Gradle wrapper 8.14.3→9.1.0 |
+| #3 | `Unresolved reference 'ExposedDropdownMenu'` + OOM daemon | Ganti ke `DropdownMenu` biasa + `gradle.properties` batasi memori |
+| #4 | Compose 1.12.0 (BOM 2026.08.00) minta `compileSdk 37`+AGP 9.1.0 lagi | Compose BOM diturunkan ke `2026.04.01` |
+| **#5** | **—** | **✅ BUILD SUCCESSFUL** |
+
+Cara ambil APK-nya: lihat bagian **GitHub Actions** di bawah.
+
+## Kenapa build tidak bisa dijalankan langsung di sesi Claude Code ini
 
 Sudah dicoba secara nyata (bukan asumsi): sesi ini punya JDK 21 dan Gradle 8.14.3, tapi
 **tidak punya Android SDK**, dan jaringan sesi ini **memblokir `dl.google.com` /
@@ -65,10 +82,8 @@ servernya sendiri (bukan di laptop kamu, jadi tidak perlu install SDK/JDK apa pu
 6. Extract zip-nya, pindahkan `app-debug.apk` ke HP, install seperti biasa (aktifkan
    **Instal aplikasi tidak dikenal** untuk aplikasi yang kamu pakai memindahkan file).
 
-> **Update:** percobaan pertama workflow ini sempat gagal nyata di CI dengan pesan
-> `Failed to find package 'platforms;android-37'` — source awal men-set `compileSdk = 37`,
-> padahal API level itu belum dipublikasikan Google. Sudah diperbaiki: `compileSdk`
-> diturunkan ke `36` (sama dengan `targetSdk`) di `android/app/build.gradle.kts`.
+> Riwayat lengkap kegagalan-perbaikan workflow ini ada di tabel pada bagian atas dokumen ini.
+> Sejak run #5, build berjalan sukses dan artifact selalu tersedia untuk diunduh.
 
 ## Cara build lewat command line di laptop sendiri (tanpa Android Studio)
 

@@ -22,7 +22,7 @@ pactio/
 |---|---|
 | Backend (`server.js`) | Berjalan & teruji (`npm test` lulus), sudah live di `https://api.patio.my.id` |
 | Android — auth, family, tasks, approval, balance | Terhubung ke backend nyata, token tersimpan aman (Android Keystore) |
-| Android — build APK | Kode selesai; build aktual **belum bisa dijalankan dari sesi Claude Code ini** karena Android SDK & Google Maven diblokir jaringan sandbox — build di Android Studio lokal (lihat `BUILD_ANDROID.md`) |
+| Android — build APK | ✅ **Berhasil** — CI GitHub Actions membangun `app-debug.apk` otomatis setiap push (lihat `BUILD_ANDROID.md`) |
 | Kontrol perangkat nyata | **Belum diimplementasikan** — sesuai PRD, menunggu alur Task→Approval→Reward stabil terlebih dahulu |
 
 ## Menjalankan backend secara lokal
