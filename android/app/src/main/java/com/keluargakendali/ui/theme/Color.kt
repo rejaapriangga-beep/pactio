@@ -7,8 +7,13 @@ import androidx.compose.ui.graphics.Color
  * hijau/merah yang diredam untuk status. Sengaja BUKAN hijau-merah ala aplikasi
  * saham/trading — ini aplikasi keluarga, jadi nadanya harus hangat dan ramah.
  * Diambil dari mockup yang sudah disetujui (canvas "Pactio Mobile UI").
+ *
+ * PactioBackground sebelumnya krem hangat (0xFFFAF6F1) - diganti putih polos (gaya Stockbit,
+ * dasar bersih) supaya latar tidak "menyaingi" warna aksen kartu/ikon yang justru ingin
+ * ditonjolkan (lihat DashboardStatCard/ChildStatCard). Kartu (PactioSurface) tetap dipertahankan
+ * hampir-putih seperti semula, dibedakan dari latar lewat PactioBorder tipis, bukan warna.
  */
-val PactioBackground = Color(0xFFFAF6F1)
+val PactioBackground = Color(0xFFFFFFFF)
 val PactioSurface = Color(0xFFFEFCFA)
 val PactioBorder = Color(0xFFE4DDD4)
 val PactioTextPrimary = Color(0xFF2E2622)

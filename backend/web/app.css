@@ -1,6 +1,8 @@
-/* Palet warna mengikuti aplikasi Android Pactio - krem hangat + aksen oranye/koral. */
+/* Palet warna mengikuti aplikasi Android Pactio - dasar putih bersih (gaya Stockbit) + aksen
+   warna berani di kartu/status. --bg sebelumnya krem hangat, diganti putih polos supaya latar
+   tidak "menyaingi" warna aksen kartu/ikon yang justru ingin ditonjolkan. */
 :root {
-  --bg: #faf3ec;
+  --bg: #ffffff;
   --surface: #ffffff;
   --surface-alt: #f1e4d8;
   --primary: #e2632f;
@@ -126,13 +128,25 @@ button { font-family: inherit; }
   background: var(--surface);
   border-radius: 18px;
   box-shadow: var(--shadow);
+  /* Garis tepi tipis - sejak --bg & --surface sama-sama putih, kartu perlu penanda batas
+     selain bayangan supaya tetap kelihatan jelas terpisah dari latar. */
+  border: 1px solid var(--border);
   padding: 20px;
   margin-bottom: 16px;
 }
 .card h2, .card h3 { margin-top: 0; }
 
 .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 16px; }
-.stat-card { background: var(--surface); border-radius: 16px; box-shadow: var(--shadow); padding: 16px; border-top: 4px solid transparent; }
+.stat-card {
+  background: var(--surface);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  padding: 16px;
+  /* border dulu (4 sisi tipis untuk batas dari latar putih), border-top BELAKANGAN supaya
+     menimpa sisi atas jadi lebih tebal + warna aksen (lihat .stat-card-* di bawah). */
+  border: 1px solid var(--border);
+  border-top: 4px solid transparent;
+}
 .stat-card .value { font-size: 28px; font-weight: 800; }
 .stat-card .label { color: var(--text-muted); font-size: 13px; margin-top: 2px; }
 
