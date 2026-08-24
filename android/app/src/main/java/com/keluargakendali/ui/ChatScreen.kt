@@ -29,10 +29,13 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BrokenImage
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -55,6 +58,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.keluargakendali.data.CHAT_REACTION_EMOJI
 import com.keluargakendali.data.ChatMessageDto
 import com.keluargakendali.data.ChatPhotoCache
 import com.keluargakendali.data.PactioApi
@@ -93,6 +98,11 @@ fun ChatScreen(state: UiState, childId: String, onRefreshUnread: () -> Unit) {
     var input by remember(childId) { mutableStateOf("") }
     var sendError by remember(childId) { mutableStateOf<String?>(null) }
     var sending by remember(childId) { mutableStateOf(false) }
+    // Pesan yang sedang dibalas (reply) - null kalau tidak sedang membalas apa pun. Lihat
+    // renderChatTab/chatReplyTarget di web/app.js untuk pola yang setara.
+    var replyTarget by remember(childId) { mutableStateOf<ChatMessageDto?>(null) }
+    // Id pesan yang popover pilihan emoji reaksinya sedang terbuka - satu popover aktif dalam satu waktu.
+    var reactionPickerMessageId by remember(childId) { mutableStateOf<String?>(null) }
     val listState = rememberLazyListState()
 
     suspend fun sendPhoto(bitmap: Bitmap) {
@@ -101,11 +111,12 @@ fun ChatScreen(state: UiState, childId: String, onRefreshUnread: () -> Unit) {
         bitmap.compress(Bitmap.CompressFormat.JPEG, 80, output)
         val bytes = output.toByteArray()
         val dataUri = "data:image/jpeg;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP)
-        runCatching { PactioApi.sendChatPhoto(token, childId, dataUri) }
+        runCatching { PactioApi.sendChatPhoto(token, childId, dataUri, replyTarget?.id) }
             .onSuccess { sent ->
                 ChatPhotoCache.save(context, sent.id, bytes)
                 messages = messages + sent
                 sendError = null
+                replyTarget = null
             }
             .onFailure { sendError = "Gagal mengirim foto." }
         sending = false
@@ -170,13 +181,33 @@ fun ChatScreen(state: UiState, childId: String, onRefreshUnread: () -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 items(messages, key = { it.id }) { message ->
+                    // Nama BEDA dari state replyTarget di atas dengan sengaja - kalau sama, akan
+                    // membayangi (shadow) state var-nya di dalam lambda ini, dan onReplyRequested
+                    // di bawah jadi tidak bisa lagi meng-assign-nya (val vs var).
+                    val quotedMessage = message.replyToId?.let { id -> messages.find { it.id == id } }
                     ChatBubble(
                         message = message,
                         isMine = message.senderId == myId,
                         senderName = senderLabelFor(message, state),
+                        replyToLabel = quotedMessage?.let { senderLabelFor(it, state) },
+                        replyToPreview = quotedMessage?.let { if (it.type == "photo") "📷 Foto" else (it.text ?: "") },
+                        myUserId = myId,
+                        reactionPickerOpen = reactionPickerMessageId == message.id,
                         context = context,
                         token = token,
-                        childId = childId
+                        childId = childId,
+                        onReplyRequested = { replyTarget = message },
+                        onToggleReactionPicker = {
+                            reactionPickerMessageId = if (reactionPickerMessageId == message.id) null else message.id
+                        },
+                        onReact = { emoji ->
+                            reactionPickerMessageId = null
+                            scope.launch {
+                                runCatching { PactioApi.reactToChatMessage(token, childId, message.id, emoji) }
+                                    .onSuccess { updated -> messages = messages.map { if (it.id == updated.id) updated else it } }
+                                    .onFailure { sendError = "Gagal memberi reaksi." }
+                            }
+                        }
                     )
                 }
             }
@@ -189,6 +220,30 @@ fun ChatScreen(state: UiState, childId: String, onRefreshUnread: () -> Unit) {
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
             )
+        }
+
+        replyTarget?.let { target ->
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val preview = if (target.type == "photo") "📷 Foto" else (target.text ?: "")
+                Text(
+                    "Membalas ${senderLabelFor(target, state)}: $preview",
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                    modifier = Modifier.weight(1f)
+                )
+                IconButton(onClick = { replyTarget = null }, modifier = Modifier.size(28.dp)) {
+                    Icon(Icons.Default.Close, contentDescription = "Batal balas")
+                }
+            }
         }
 
         Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -224,9 +279,10 @@ fun ChatScreen(state: UiState, childId: String, onRefreshUnread: () -> Unit) {
                     if (text.isEmpty()) return@IconButton
                     input = ""
                     sending = true
+                    val replyToId = replyTarget?.id
                     scope.launch {
-                        runCatching { PactioApi.sendChatText(token, childId, text) }
-                            .onSuccess { sent -> messages = messages + sent; sendError = null }
+                        runCatching { PactioApi.sendChatText(token, childId, text, replyToId) }
+                            .onSuccess { sent -> messages = messages + sent; sendError = null; replyTarget = null }
                             .onFailure { sendError = "Gagal mengirim pesan." }
                         sending = false
                     }
@@ -239,14 +295,34 @@ fun ChatScreen(state: UiState, childId: String, onRefreshUnread: () -> Unit) {
     }
 }
 
-/** Nama pengirim untuk pesan yang BUKAN milik pengguna - penting di thread grup (bisa lebih dari 2 peserta), tetap ditampilkan di thread privat untuk konsistensi. */
+/**
+ * Nama pengirim satu pesan - "Kamu" untuk pesan sendiri (dipakai di kutipan balasan, lihat
+ * replyTarget di atas), atau "Orang Tua"/nama anak untuk pesan orang lain (dipakai sebagai label
+ * di atas bubble non-mine, penting di thread grup yang bisa lebih dari 2 peserta).
+ */
 private fun senderLabelFor(message: ChatMessageDto, state: UiState): String {
+    if (message.senderId == state.currentUser?.id) return "Kamu"
     if (message.senderRole == "parent") return "Orang Tua"
     return state.children.find { it.id == message.senderId }?.name ?: "Anak"
 }
 
 @Composable
-private fun ChatBubble(message: ChatMessageDto, isMine: Boolean, senderName: String, context: Context, token: String, childId: String) {
+private fun ChatBubble(
+    message: ChatMessageDto,
+    isMine: Boolean,
+    senderName: String,
+    replyToLabel: String?,
+    replyToPreview: String?,
+    myUserId: String,
+    reactionPickerOpen: Boolean,
+    context: Context,
+    token: String,
+    childId: String,
+    onReplyRequested: () -> Unit,
+    onToggleReactionPicker: () -> Unit,
+    onReact: (String) -> Unit
+) {
+    val onBubbleColor = if (isMine) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
     Row(Modifier.fillMaxWidth(), horizontalArrangement = if (isMine) Arrangement.End else Arrangement.Start) {
         Column(
             modifier = Modifier
@@ -264,20 +340,83 @@ private fun ChatBubble(message: ChatMessageDto, isMine: Boolean, senderName: Str
                 )
                 Spacer(Modifier.height(2.dp))
             }
+
+            // Kutipan pesan yang dibalas - diam-diam dilewati kalau target tidak ditemukan di
+            // riwayat yang sudah dimuat (mis. di luar 200 pesan terakhir), cuma pemanis tampilan.
+            if (replyToLabel != null && replyToPreview != null) {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 6.dp)
+                        .background(onBubbleColor.copy(alpha = 0.12f), RoundedCornerShape(6.dp))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(replyToLabel, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = onBubbleColor)
+                    Text(replyToPreview, style = MaterialTheme.typography.labelSmall, color = onBubbleColor, maxLines = 2)
+                }
+            }
+
             if (message.type == "photo") {
                 ChatPhotoContent(context = context, token = token, childId = childId, message = message)
             } else {
-                Text(
-                    message.text ?: "",
-                    color = if (isMine) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Text(message.text ?: "", color = onBubbleColor)
             }
             Text(
                 formatChatTime(message.createdAt),
                 style = MaterialTheme.typography.labelSmall,
-                color = (if (isMine) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant).copy(alpha = 0.7f),
+                color = onBubbleColor.copy(alpha = 0.7f),
                 modifier = Modifier.align(Alignment.End).padding(top = 2.dp)
             )
+
+            // Reaksi yang sudah ada, dikelompokkan per emoji - tap pill = toggle reaksi SAYA
+            // dengan emoji itu (jalan pintas, sama efeknya dengan pilih dari popover di bawah).
+            if (message.reactions.isNotEmpty()) {
+                val grouped = message.reactions.groupBy({ it.emoji }, { it.userId })
+                Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    grouped.forEach { (emoji, userIds) ->
+                        val mine = userIds.contains(myUserId)
+                        AssistChip(
+                            onClick = { onReact(emoji) },
+                            label = { Text("$emoji ${userIds.size}", style = MaterialTheme.typography.labelSmall) },
+                            colors = AssistChipDefaults.assistChipColors(
+                                containerColor = if (mine) MaterialTheme.colorScheme.primaryContainer else onBubbleColor.copy(alpha = 0.1f)
+                            ),
+                            modifier = Modifier.height(26.dp)
+                        )
+                    }
+                }
+            }
+
+            Row(Modifier.padding(top = 2.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                TextButton(onClick = onReplyRequested, contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)) {
+                    Text("↩ Balas", style = MaterialTheme.typography.labelSmall, color = onBubbleColor.copy(alpha = 0.85f))
+                }
+                TextButton(onClick = onToggleReactionPicker, contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)) {
+                    Text("🙂 Reaksi", style = MaterialTheme.typography.labelSmall, color = onBubbleColor.copy(alpha = 0.85f))
+                }
+            }
+
+            if (reactionPickerOpen) {
+                Row(
+                    Modifier
+                        .padding(top = 4.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(MaterialTheme.colorScheme.surface)
+                        .padding(horizontal = 6.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    CHAT_REACTION_EMOJI.forEach { emoji ->
+                        Text(
+                            emoji,
+                            fontSize = 18.sp,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .clickable { onReact(emoji) }
+                                .padding(4.dp)
+                        )
+                    }
+                }
+            }
         }
     }
 }

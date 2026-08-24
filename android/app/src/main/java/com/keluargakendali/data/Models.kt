@@ -109,11 +109,34 @@ data class ChatMessageDto(
     val text: String?,
     val photoMime: String?,
     val photoAvailable: Boolean,
+    // id pesan lain di THREAD YANG SAMA yang dibalas pesan ini, null kalau bukan balasan.
+    val replyToId: String? = null,
+    val reactions: List<ChatReactionDto> = emptyList(),
     val createdAt: String
 )
 
+/** Satu reaksi emoji dari satu pengguna pada satu pesan - lihat ALLOWED_CHAT_REACTIONS di server.js. */
+data class ChatReactionDto(val userId: String, val emoji: String)
+
+/** Emoji reaksi yang didukung - HARUS SAMA PERSIS dengan ALLOWED_CHAT_REACTIONS di server.js & CHAT_REACTION_EMOJI di web/app.js. */
+val CHAT_REACTION_EMOJI = listOf("👍", "❤️", "😂", "😮", "😢", "🙏")
+
 data class ChatThreadUnread(val childId: String, val unreadCount: Int)
 data class ChatUnreadSummary(val total: Int, val threads: List<ChatThreadUnread>)
+
+/**
+ * Hasil POST /backup/create - berkas backup keluarga yang sudah dienkripsi AES-256-GCM pakai
+ * kata sandi yang orang tua tentukan sendiri (lihat catatan lengkap di server.js). Disimpan apa
+ * adanya (JSON mentah, bukan didekode di Android) ke penyimpanan yang dipilih orang tua lewat
+ * Storage Access Framework - lihat BackupDownloadFlow di ParentScreen.kt.
+ */
+data class BackupResult(
+    val format: String,
+    val salt: String,
+    val iv: String,
+    val tag: String,
+    val ciphertext: String
+)
 
 fun statusLabel(status: String): String = when (status) {
     "assigned" -> "Belum dikirim"
@@ -151,5 +174,6 @@ fun activityActionLabel(action: String): String = when (action) {
     "task_approved" -> "Menyetujui tugas"
     "task_rejected" -> "Menolak tugas"
     "access_redeemed" -> "Menukar saldo menit jadi waktu akses"
+    "backup_created" -> "Mengunduh backup terenkripsi"
     else -> action
 }

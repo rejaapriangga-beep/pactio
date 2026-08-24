@@ -31,6 +31,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
@@ -141,9 +142,40 @@ fun PactioTabRow(items: List<TabItem>, selectedIndex: Int, onSelect: (Int) -> Un
 }
 
 /**
+ * Baris sub-tab pemilih thread chat (grup "Semua Anak"/"Keluarga" + tiap thread privat) - tampil
+ * tepat di bawah top menu utama SELAGI tab Chat aktif, dipakai baik oleh ParentScreen maupun
+ * ChildScreen. Menggantikan dropdown lama khusus untuk kebutuhan ini - lihat renderChatSubTabs
+ * di web/app.js untuk pola yang setara.
+ */
+@Composable
+fun ChatSubTabs(options: List<Pair<String, String>>, selectedId: String, unreadByThread: Map<String, Int>, onSelect: (String) -> Unit) {
+    ScrollableTabRow(
+        selectedTabIndex = options.indexOfFirst { it.first == selectedId }.coerceAtLeast(0),
+        edgePadding = 8.dp,
+        containerColor = MaterialTheme.colorScheme.surfaceVariant
+    ) {
+        options.forEach { (id, label) ->
+            val unread = unreadByThread[id] ?: 0
+            Tab(
+                selected = selectedId == id,
+                onClick = { onSelect(id) },
+                text = {
+                    if (unread > 0) {
+                        BadgedBox(badge = { Badge { Text(if (unread > 99) "99+" else unread.toString()) } }) {
+                            Text(label, style = MaterialTheme.typography.labelMedium)
+                        }
+                    } else {
+                        Text(label, style = MaterialTheme.typography.labelMedium)
+                    }
+                }
+            )
+        }
+    }
+}
+
+/**
  * Satu dropdown pilihan (Material3 ExposedDropdownMenuBox, read-only text field) - dipakai
- * untuk filter Daftar Tugas (anak/status) di ParentScreen, dan pemilih thread Chat (grup
- * keluarga/thread privat) di ParentScreen & ChildScreen.
+ * untuk filter Daftar Tugas (anak/status) di ParentScreen.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

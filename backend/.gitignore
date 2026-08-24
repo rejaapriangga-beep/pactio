@@ -1,1 +1,5 @@
 data.json
+# Kunci enkripsi at-rest teks chat (lihat CHAT_ENC_KEY di server.js) - dibuat otomatis sekali
+# saat startup pertama kalau belum ada, TIDAK PERNAH boleh ikut ter-commit (rahasia, seperti
+# data.json). Hilang/beda kunci ini = riwayat chat lama tidak bisa didekripsi lagi.
+chat.key

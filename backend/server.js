@@ -33,6 +33,41 @@ const CHAT_RELAY_DIR = path.join(path.dirname(DATA_FILE), "chat_relay");
 fs.mkdirSync(CHAT_RELAY_DIR, { recursive: true });
 const CHAT_PHOTO_RETENTION_MS = 48 * 60 * 60 * 1000; // 48 jam
 const MAX_CHAT_TEXT_LENGTH = 2000;
+
+// --- Enkripsi teks chat saat disimpan (at-rest) -----------------------------------------
+// Isi pesan teks dienkripsi AES-256-GCM sebelum ditulis ke data.json, dengan kunci yang
+// TIDAK PERNAH ikut tersimpan di data.json itu sendiri - disimpan terpisah di berkas
+// chat.key (folder yang sama, permission 0600, dibuat otomatis sekali saat startup pertama).
+// Tujuannya: kalau data.json (atau backup-nya) somehow bocor/salah terkirim TANPA chat.key
+// ikut serta, isi pesan tetap tidak terbaca. Ini BUKAN end-to-end encryption sungguhan (server
+// tetap memegang kuncinya untuk bisa menampilkan pesan ke aplikasi) - dipilih sengaja supaya
+// restore/redeploy tetap sederhana dan riwayat chat tidak pernah hilang permanen hanya karena
+// kunci hilang di satu perangkat, cocok untuk aplikasi keluarga satu-VPS ini.
+const CHAT_KEY_FILE = path.join(path.dirname(DATA_FILE), "chat.key");
+function loadOrCreateChatKey() {
+  if (fs.existsSync(CHAT_KEY_FILE)) return fs.readFileSync(CHAT_KEY_FILE);
+  const key = crypto.randomBytes(32);
+  fs.writeFileSync(CHAT_KEY_FILE, key, { mode: 0o600 });
+  return key;
+}
+const CHAT_ENC_KEY = loadOrCreateChatKey();
+
+function encryptChatText(plainText) {
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", CHAT_ENC_KEY, iv);
+  const ciphertext = Buffer.concat([cipher.update(plainText, "utf8"), cipher.final()]);
+  return { iv: iv.toString("base64"), tag: cipher.getAuthTag().toString("base64"), ct: ciphertext.toString("base64") };
+}
+
+function decryptChatText(enc) {
+  const decipher = crypto.createDecipheriv("aes-256-gcm", CHAT_ENC_KEY, Buffer.from(enc.iv, "base64"));
+  decipher.setAuthTag(Buffer.from(enc.tag, "base64"));
+  const plain = Buffer.concat([decipher.update(Buffer.from(enc.ct, "base64")), decipher.final()]);
+  return plain.toString("utf8");
+}
+
+/** Emoji reaksi yang didukung - dibatasi daftar tetap (bukan string bebas) supaya tidak disalahgunakan untuk menyimpan data lain. */
+const ALLOWED_CHAT_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 // Thread key khusus untuk grup obrolan bersama SEMUA anggota keluarga (orang tua + semua
 // anak), selain thread privat satu-lawan-satu per anak yang sudah ada. Dipakai sebagai nilai
 // field childId pada pesan - "childId" jadi istilah umum "thread key" sejak ini, bukan cuma id
@@ -69,6 +104,14 @@ function loadData() {
     if (!Array.isArray(task.evidenceFiles)) {
       task.evidenceFiles = task.evidencePhotoType ? [{ id: "legacy", mime: task.evidencePhotoType }] : [];
     }
+  }
+  // Migrasi pesan chat lama: belum punya reactions/replyToId (fitur baru), dan teksnya belum
+  // dienkripsi (textEnc, lihat CHAT_ENC_KEY) - tetap dibaca apa adanya lewat fallback di
+  // publicChatMessage(), TIDAK dienkripsi paksa di sini (tidak perlu tulis ulang seluruh riwayat
+  // lama, cukup pesan BARU yang otomatis terenkripsi sejak fitur ini ada).
+  for (const message of loaded.chatMessages || []) {
+    if (!Array.isArray(message.reactions)) message.reactions = [];
+    if (message.replyToId === undefined) message.replyToId = null;
   }
   return loaded;
 }
@@ -193,6 +236,44 @@ function logActivity(actor, action, detail = "") {
     const dropIds = new Set(familyEntries.slice(0, familyEntries.length - AUDIT_LOG_MAX_PER_FAMILY).map((item) => item.id));
     db.auditLog = db.auditLog.filter((item) => !dropIds.has(item.id));
   }
+}
+
+// --- Backup terenkripsi (diunduh manual oleh orang tua) -----------------------------
+// Mengumpulkan snapshot data keluarga (profil, tugas, riwayat chat - teks chat DIDEKRIPSI
+// dulu lewat publicChatMessage supaya file backup mandiri/portable, tidak bergantung pada
+// chat.key server ini) lalu dienkripsi AES-256-GCM pakai KATA SANDI yang orang tua tentukan
+// sendiri saat itu (scrypt untuk turunkan kunci dari kata sandi) - jadi berkasnya aman dibawa
+// keluar VPS (disk laptop/HP), TIDAK butuh chat.key atau akses server lagi untuk membacanya,
+// cukup kata sandi yang sama. Sengaja TIDAK menyertakan passwordHash/pinHash akun (lihat
+// publicUser) - kredensial tidak pernah ikut keluar dari server, bahkan dalam bentuk hash.
+const BACKUP_FORMAT = "pactio-backup-v1";
+
+function familyDataSnapshot(familyId) {
+  const family = db.families.find((item) => item.id === familyId);
+  const users = db.users.filter((item) => item.familyId === familyId);
+  const childIds = users.filter((item) => item.role === "child").map((item) => item.id);
+  const threadKeys = new Set([FAMILY_THREAD_KEY, ...childIds]);
+  return {
+    exportedAt: new Date().toISOString(),
+    family: { id: family.id, name: family.name, code: family.code },
+    users: users.map(publicUser),
+    tasks: db.tasks.filter((item) => item.familyId === familyId),
+    chatMessages: db.chatMessages.filter((item) => threadKeys.has(item.childId)).map(publicChatMessage)
+  };
+}
+
+function encryptWithPassword(plainBuffer, password) {
+  const salt = crypto.randomBytes(16);
+  const key = crypto.scryptSync(password, salt, 32);
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+  const ciphertext = Buffer.concat([cipher.update(plainBuffer), cipher.final()]);
+  return {
+    salt: salt.toString("base64"),
+    iv: iv.toString("base64"),
+    tag: cipher.getAuthTag().toString("base64"),
+    ciphertext: ciphertext.toString("base64")
+  };
 }
 
 // --- Verifikasi Google Sign-In (Credential Manager di Android) ---------------------
@@ -429,7 +510,11 @@ function sweepStaleChatPhotos() {
   if (changed) save();
 }
 
-/** Bentuk pesan yang dikirim ke klien - tidak pernah menyertakan byte foto (diambil terpisah). */
+/**
+ * Bentuk pesan yang dikirim ke klien - tidak pernah menyertakan byte foto (diambil terpisah).
+ * `text`: didekripsi dari textEnc kalau ada (pesan baru); fallback ke field `text` polos untuk
+ * pesan lama dari sebelum enkripsi at-rest ada (lihat migrasi di loadData).
+ */
 function publicChatMessage(message) {
   return {
     id: message.id,
@@ -437,9 +522,11 @@ function publicChatMessage(message) {
     senderId: message.senderId,
     senderRole: message.senderRole,
     type: message.type,
-    text: message.text,
+    text: message.type === "text" ? (message.textEnc ? decryptChatText(message.textEnc) : message.text) : null,
     photoMime: message.photoMime,
     photoAvailable: message.photoAvailable,
+    replyToId: message.replyToId || null,
+    reactions: message.reactions || [],
     createdAt: message.createdAt
   };
 }
@@ -688,6 +775,19 @@ async function route(req, res) {
   // Log aktivitas - HANYA orang tua yang bisa membaca (lihat komentar di logActivity()).
   // Terbaru dulu, dibatasi 100 supaya ringan (riwayat penuh tetap tersimpan di data.json
   // sampai AUDIT_LOG_MAX_PER_FAMILY).
+  // Backup terenkripsi sekali-unduh - lihat catatan lengkap di familyDataSnapshot/encryptWithPassword.
+  // Kata sandi yang sama HARUS diingat orang tua sendiri untuk buka berkasnya nanti - server
+  // tidak menyimpan kata sandi ini sama sekali (hanya dipakai sesaat untuk enkripsi lalu dibuang).
+  if (req.method === "POST" && pathname === "/backup/create") {
+    const parent = auth(req, res, ["parent"]); if (!parent) return;
+    const body = await bodyOf(req);
+    const password = requireText(body.password, "Kata sandi backup", 8);
+    const snapshot = familyDataSnapshot(parent.familyId);
+    const encrypted = encryptWithPassword(Buffer.from(JSON.stringify(snapshot), "utf8"), password);
+    logActivity(parent, "backup_created", ""); save();
+    return send(res, 200, { format: BACKUP_FORMAT, ...encrypted });
+  }
+
   if (req.method === "GET" && pathname === "/activity-log") {
     const parent = auth(req, res, ["parent"]); if (!parent) return;
     const entries = db.auditLog.filter((item) => item.familyId === parent.familyId).slice(-100).reverse();
@@ -821,12 +921,22 @@ async function route(req, res) {
 
     const message = {
       id: id("chatmsg"), childId: threadKey, senderId: user.id, senderRole: user.role,
-      type, text: null, photoMime: null, photoAvailable: false, createdAt: new Date().toISOString()
+      type, text: null, textEnc: null, photoMime: null, photoAvailable: false,
+      replyToId: null, reactions: [], createdAt: new Date().toISOString()
     };
 
+    // Balasan (reply) - opsional, hanya diterima kalau memang menunjuk pesan lain yang benar-benar
+    // ada di THREAD YANG SAMA (bukan thread lain) - diam-diam diabaikan kalau tidak valid, bukan
+    // ditolak, supaya UI tidak perlu penanganan error khusus untuk hal kecil seperti ini.
+    if (typeof body.replyToId === "string" && body.replyToId) {
+      const target = db.chatMessages.find((item) => item.id === body.replyToId && item.childId === threadKey);
+      if (target) message.replyToId = target.id;
+    }
+
     if (type === "text") {
-      message.text = requireText(body.text, "Pesan");
-      if (message.text.length > MAX_CHAT_TEXT_LENGTH) return send(res, 400, { error: `Pesan maksimal ${MAX_CHAT_TEXT_LENGTH} karakter.` });
+      const plainText = requireText(body.text, "Pesan");
+      if (plainText.length > MAX_CHAT_TEXT_LENGTH) return send(res, 400, { error: `Pesan maksimal ${MAX_CHAT_TEXT_LENGTH} karakter.` });
+      message.textEnc = encryptChatText(plainText);
     } else {
       let file;
       try { file = validateEvidenceFile(body.photo); }
@@ -860,6 +970,27 @@ async function route(req, res) {
     const buffer = fs.readFileSync(filePath);
     res.writeHead(200, { "Content-Type": message.photoMime, "Content-Length": buffer.length, "Cache-Control": "private, no-store" });
     return res.end(buffer);
+  }
+
+  // Reaksi emoji ke satu pesan - satu pengguna cuma boleh punya SATU reaksi aktif per pesan
+  // (menekan emoji yang sama = batal, emoji lain = ganti), konsisten dengan pola WhatsApp,
+  // bukan Slack (yang mengizinkan banyak reaksi berbeda per orang per pesan).
+  const chatReactMatch = pathname.match(/^\/chat\/([^/]+)\/messages\/([^/]+)\/react$/);
+  if (req.method === "POST" && chatReactMatch) {
+    const user = auth(req, res); if (!user) return;
+    const threadKey = chatReactMatch[1];
+    if (!canAccessChatThread(user, threadKey)) return send(res, 404, { error: "Thread chat tidak ditemukan." });
+    const message = db.chatMessages.find((item) => item.id === chatReactMatch[2] && item.childId === threadKey);
+    if (!message) return send(res, 404, { error: "Pesan tidak ditemukan." });
+    const body = await bodyOf(req);
+    const emoji = String(body.emoji || "");
+    if (!ALLOWED_CHAT_REACTIONS.includes(emoji)) return send(res, 400, { error: "Reaksi tidak didukung." });
+    if (!Array.isArray(message.reactions)) message.reactions = [];
+    const alreadyThisEmoji = message.reactions.some((r) => r.userId === user.id && r.emoji === emoji);
+    message.reactions = message.reactions.filter((r) => r.userId !== user.id);
+    if (!alreadyThisEmoji) message.reactions.push({ userId: user.id, emoji });
+    save();
+    return send(res, 200, { message: publicChatMessage(message) });
   }
 
   // Menandai thread sudah dibaca sampai sekarang - dipanggil klien saat tab Chat dibuka /

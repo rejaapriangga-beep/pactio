@@ -5,6 +5,8 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -57,6 +59,7 @@ import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -64,6 +67,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -86,6 +90,7 @@ import com.keluargakendali.data.TaskDto
 import com.keluargakendali.data.UserDto
 import com.keluargakendali.data.activityActionLabel
 import com.keluargakendali.data.statusLabel
+import kotlinx.coroutines.launch
 import java.io.File
 
 @Composable
@@ -123,7 +128,13 @@ fun ParentScreen(
         PactioTabRow(items = tabs, selectedIndex = selectedTab, onSelect = { selectedTab = it })
 
         when (selectedTab) {
-            0 -> ParentDashboardTab(state = state, approvalCount = approvalCount, onCreateTask = { showCreateTask = true })
+            0 -> ParentDashboardTab(
+                state = state,
+                approvalCount = approvalCount,
+                onCreateTask = { showCreateTask = true },
+                onDecide = onDecide,
+                onSetLock = onSetLock
+            )
             1 -> ParentTaskListTab(
                 state = state,
                 statusFilter = statusFilter,
@@ -177,6 +188,8 @@ fun ParentSettingsDialog(
     children: List<UserDto>,
     activityLog: List<ActivityLogEntryDto>,
     loading: Boolean,
+    token: String?,
+    familyName: String?,
     onAddChild: (name: String, pin: String) -> Unit,
     onDeleteChild: (childId: String) -> Unit,
     onResetPin: (childId: String, pin: String) -> Unit,
@@ -228,6 +241,11 @@ fun ParentSettingsDialog(
                 OutlinedButton(onClick = { showAddChild = true }, modifier = Modifier.fillMaxWidth()) {
                     Text("+ Tambah Anak")
                 }
+
+                Spacer(Modifier.height(20.dp))
+                HorizontalDivider()
+                Spacer(Modifier.height(12.dp))
+                if (token != null) BackupSection(token = token, familyName = familyName)
 
                 Spacer(Modifier.height(20.dp))
                 HorizontalDivider()
@@ -286,6 +304,112 @@ fun ParentSettingsDialog(
             dismissButton = { TextButton(onClick = { childPendingDelete = null }) { Text("Batal") } }
         )
     }
+}
+
+/**
+ * Cadangan data keluarga terenkripsi, diunduh ke penyimpanan yang orang tua pilih sendiri lewat
+ * Storage Access Framework (bukan folder tersembunyi aplikasi) - lihat catatan lengkap enkripsi
+ * di PactioApi.createBackup/server.js. Alurnya: password dulu -> panggil API -> baru buka
+ * pemilih lokasi simpan (CreateDocument) begitu byte-nya sudah siap ditulis.
+ */
+@Composable
+private fun BackupSection(token: String, familyName: String?) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var showPasswordDialog by remember { mutableStateOf(false) }
+    var backupLoading by remember { mutableStateOf(false) }
+    var backupError by remember { mutableStateOf<String?>(null) }
+    var pendingBackupBytes by remember { mutableStateOf<ByteArray?>(null) }
+
+    val createDocumentLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        val bytes = pendingBackupBytes
+        pendingBackupBytes = null
+        if (uri != null && bytes != null) {
+            runCatching { context.contentResolver.openOutputStream(uri)?.use { it.write(bytes) } }
+                .onSuccess { Toast.makeText(context, "Backup terenkripsi berhasil disimpan. Simpan kata sandinya baik-baik - server TIDAK menyimpannya.", Toast.LENGTH_LONG).show() }
+                .onFailure { Toast.makeText(context, "Gagal menyimpan berkas backup.", Toast.LENGTH_SHORT).show() }
+        }
+    }
+
+    LaunchedEffect(pendingBackupBytes) {
+        if (pendingBackupBytes != null) {
+            val safeFamilyName = (familyName ?: "pactio").lowercase().replace(Regex("[^a-z0-9]+"), "-")
+            val dateStr = java.time.LocalDate.now().toString()
+            createDocumentLauncher.launch("pactio-backup-$safeFamilyName-$dateStr.json")
+        }
+    }
+
+    Column {
+        Text("Cadangan Data", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+        Text(
+            "Unduh salinan data keluarga (profil anak, tugas, riwayat chat) sebagai berkas terenkripsi ke penyimpanan HP kamu. Kata sandinya kamu tentukan sendiri - server TIDAK menyimpannya.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(onClick = { showPasswordDialog = true }, modifier = Modifier.fillMaxWidth(), enabled = !backupLoading) {
+            Text("Unduh Backup Terenkripsi")
+        }
+    }
+
+    if (showPasswordDialog) {
+        BackupPasswordDialog(
+            loading = backupLoading,
+            error = backupError,
+            onDismiss = { showPasswordDialog = false; backupError = null },
+            onSubmit = { password ->
+                backupLoading = true
+                backupError = null
+                scope.launch {
+                    runCatching { PactioApi.createBackup(token, password) }
+                        .onSuccess { result ->
+                            val json = org.json.JSONObject()
+                                .put("format", result.format)
+                                .put("salt", result.salt)
+                                .put("iv", result.iv)
+                                .put("tag", result.tag)
+                                .put("ciphertext", result.ciphertext)
+                            pendingBackupBytes = json.toString(2).toByteArray(Charsets.UTF_8)
+                            showPasswordDialog = false
+                        }
+                        .onFailure { backupError = it.message ?: "Gagal membuat backup." }
+                    backupLoading = false
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun BackupPasswordDialog(loading: Boolean, error: String?, onDismiss: () -> Unit, onSubmit: (String) -> Unit) {
+    var password by remember { mutableStateOf("") }
+    var confirm by remember { mutableStateOf("") }
+    val mismatch = confirm.isNotEmpty() && password != confirm
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Unduh Backup Terenkripsi") },
+        text = {
+            Column {
+                Text(
+                    "Buat kata sandi backup (minimal 8 karakter). Kata sandi ini HARUS kamu ingat sendiri - dipakai lagi nanti untuk membuka berkas ini, server tidak menyimpannya sama sekali.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Spacer(Modifier.height(8.dp))
+                PasswordField(password, { password = it }, "Kata sandi backup", KeyboardType.Password)
+                PasswordField(confirm, { confirm = it }, "Ulangi kata sandi", KeyboardType.Password)
+                if (mismatch) Text("Kata sandi tidak sama.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onSubmit(password) },
+                enabled = !loading && password.length >= 8 && password == confirm
+            ) { Text("Unduh Backup") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Batal") } }
+    )
 }
 
 @Composable
@@ -349,7 +473,16 @@ private fun formatActivityLogTime(iso: String): String = try {
 
 /** Ringkasan keluarga + aksi utama "Buat Tugas" (FAB bulat "+", gaya dompetdigitalku). */
 @Composable
-private fun ParentDashboardTab(state: UiState, approvalCount: Int, onCreateTask: () -> Unit) {
+private fun ParentDashboardTab(
+    state: UiState,
+    approvalCount: Int,
+    onCreateTask: () -> Unit,
+    onDecide: (taskId: String, approved: Boolean, note: String) -> Unit,
+    onSetLock: (childId: String, enabled: Boolean) -> Unit
+) {
+    // Pop-up review/follow-up cepat saat kartu ringkasan diklik - lihat DashboardStatCard(onClick).
+    var cardModal by remember { mutableStateOf<String?>(null) }
+
     Box(Modifier.fillMaxSize()) {
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
@@ -383,12 +516,12 @@ private fun ParentDashboardTab(state: UiState, approvalCount: Int, onCreateTask:
             }
 
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                DashboardStatCard(modifier = Modifier.weight(1f), label = "Menunggu Approval", value = approvalCount.toString())
-                DashboardStatCard(modifier = Modifier.weight(1f), label = "Anak", value = state.children.size.toString())
+                DashboardStatCard(modifier = Modifier.weight(1f), label = "Menunggu Approval", value = approvalCount.toString(), onClick = { cardModal = "approval" })
+                DashboardStatCard(modifier = Modifier.weight(1f), label = "Anak", value = state.children.size.toString(), onClick = { cardModal = "children" })
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                DashboardStatCard(modifier = Modifier.weight(1f), label = "Terkunci", value = state.children.count { it.lockModeEnabled }.toString())
-                DashboardStatCard(modifier = Modifier.weight(1f), label = "Total Tugas", value = state.tasks.size.toString())
+                DashboardStatCard(modifier = Modifier.weight(1f), label = "Terkunci", value = state.children.count { it.lockModeEnabled }.toString(), onClick = { cardModal = "locked" })
+                DashboardStatCard(modifier = Modifier.weight(1f), label = "Total Tugas", value = state.tasks.size.toString(), onClick = { cardModal = "tasks" })
             }
 
             if (state.children.isNotEmpty()) {
@@ -407,6 +540,157 @@ private fun ParentDashboardTab(state: UiState, approvalCount: Int, onCreateTask:
                 Icon(Icons.Default.Add, contentDescription = "Buat Tugas")
             }
         }
+    }
+
+    when (cardModal) {
+        "approval" -> DashboardApprovalDialog(
+            tasks = state.tasks.filter { it.status == "submitted" },
+            children = state.children,
+            token = state.token,
+            loading = state.loading,
+            onDecide = onDecide,
+            onDismiss = { cardModal = null }
+        )
+        "children" -> DashboardChildrenDialog(children = state.children, tasks = state.tasks, onDismiss = { cardModal = null })
+        "locked" -> DashboardLockedDialog(
+            children = state.children.filter { it.lockModeEnabled },
+            loading = state.loading,
+            onSetLock = onSetLock,
+            onDismiss = { cardModal = null }
+        )
+        "tasks" -> DashboardTasksDialog(tasks = state.tasks, children = state.children, token = state.token, onDismiss = { cardModal = null })
+    }
+}
+
+@Composable
+private fun DashboardApprovalDialog(
+    tasks: List<TaskDto>,
+    children: List<UserDto>,
+    token: String?,
+    loading: Boolean,
+    onDecide: (String, Boolean, String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Menunggu Approval") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (tasks.isEmpty()) {
+                    Text("Tidak ada tugas yang menunggu approval.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    tasks.forEach { task ->
+                        WaitingTaskCard(task = task, childName = children.find { it.id == task.childId }?.name, token = token, loading = loading, onDecide = onDecide)
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Tutup") } }
+    )
+}
+
+@Composable
+private fun DashboardChildrenDialog(children: List<UserDto>, tasks: List<TaskDto>, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Anak") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                if (children.isEmpty()) {
+                    Text("Belum ada profil anak.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    children.forEach { child ->
+                        val incomplete = tasks.count { it.childId == child.id && it.status != "approved" }
+                        Row(
+                            Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(child.name, fontWeight = FontWeight.SemiBold)
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                if (child.lockModeEnabled) {
+                                    Text(
+                                        "Terkunci",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onErrorContainer,
+                                        modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(MaterialTheme.colorScheme.errorContainer).padding(horizontal = 8.dp, vertical = 2.dp)
+                                    )
+                                }
+                                Text(
+                                    "$incomplete tugas tertunda",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(MaterialTheme.colorScheme.secondaryContainer).padding(horizontal = 8.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                        HorizontalDivider()
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Tutup") } }
+    )
+}
+
+@Composable
+private fun DashboardLockedDialog(children: List<UserDto>, loading: Boolean, onSetLock: (String, Boolean) -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Perangkat Terkunci") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                if (children.isEmpty()) {
+                    Text("Tidak ada perangkat yang terkunci saat ini.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    children.forEach { child ->
+                        Row(
+                            Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(child.name, fontWeight = FontWeight.SemiBold)
+                            OutlinedButton(onClick = { onSetLock(child.id, false) }, enabled = !loading) { Text("Buka Kunci") }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Tutup") } }
+    )
+}
+
+@Composable
+private fun DashboardTasksDialog(tasks: List<TaskDto>, children: List<UserDto>, token: String?, onDismiss: () -> Unit) {
+    // Detail satu tugas dibuka DI ATAS pop-up ini (bukan menutupnya) - state lokal, terpisah
+    // dari detailTaskId milik ParentScreen (tab Daftar Tugas), supaya tidak saling mengganggu.
+    var detailTask by remember { mutableStateOf<TaskDto?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Semua Tugas") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (tasks.isEmpty()) {
+                    Text("Belum ada tugas.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    tasks.forEach { task ->
+                        TaskSummaryCard(task = task, childName = children.find { it.id == task.childId }?.name, onClick = { detailTask = task })
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Tutup") } }
+    )
+
+    val currentDetailTask = detailTask
+    if (currentDetailTask != null) {
+        TaskDetailDialog(
+            task = currentDetailTask,
+            childName = children.find { it.id == currentDetailTask.childId }?.name,
+            token = token,
+            onDismiss = { detailTask = null }
+        )
     }
 }
 
@@ -494,8 +778,8 @@ fun DashboardChatPreviewCard(messages: List<ChatMessageDto>, currentUserId: Stri
 }
 
 @Composable
-private fun DashboardStatCard(modifier: Modifier = Modifier, label: String, value: String) {
-    Card(modifier = modifier, shape = RoundedCornerShape(16.dp)) {
+private fun DashboardStatCard(modifier: Modifier = Modifier, label: String, value: String, onClick: () -> Unit) {
+    Card(modifier = modifier.clickable(onClick = onClick), shape = RoundedCornerShape(16.dp)) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
             Text(value, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
             Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -584,15 +868,13 @@ private fun ParentChatTab(
         return
     }
     val activeThreadId = selectedThreadId ?: FAMILY_CHAT_THREAD_ID
-    val options = listOf<Pair<String?, String>>(FAMILY_CHAT_THREAD_ID to "Semua Anak") +
-        state.children.map { (it.id as String?) to it.name }
+    val options = listOf(FAMILY_CHAT_THREAD_ID to "Semua Anak") + state.children.map { it.id to it.name }
     Column(Modifier.fillMaxSize()) {
-        FilterDropdown(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
-            label = "Percakapan",
-            selectedLabel = options.find { it.first == activeThreadId }?.second ?: "Semua Anak",
+        ChatSubTabs(
             options = options,
-            onSelect = { value -> value?.let(onSelectThread) }
+            selectedId = activeThreadId,
+            unreadByThread = state.chatUnreadByThread,
+            onSelect = onSelectThread
         )
         ChatScreen(state = state, childId = activeThreadId, onRefreshUnread = onRefreshUnread)
     }
@@ -623,7 +905,18 @@ private fun ParentLockTab(children: List<UserDto>, loading: Boolean, onSetLock: 
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(child.name, fontWeight = FontWeight.SemiBold)
-                        Switch(checked = child.lockModeEnabled, onCheckedChange = { onSetLock(child.id, it) }, enabled = !loading)
+                        Switch(
+                            checked = child.lockModeEnabled,
+                            onCheckedChange = { onSetLock(child.id, it) },
+                            enabled = !loading,
+                            // Merah (bukan warna aksen oranye standar) saat TERKUNCI - kontras
+                            // lebih tinggi & lebih jelas maknanya ("terkunci/dibatasi"), sama
+                            // dengan perubahan warna toggle di web/app.css.
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = MaterialTheme.colorScheme.error,
+                                checkedThumbColor = MaterialTheme.colorScheme.onError
+                            )
+                        )
                     }
                 }
             }

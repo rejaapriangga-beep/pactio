@@ -38,6 +38,9 @@ data class UiState(
     // langsung, sama seperti EvidenceFileThumbnail di ParentScreen), cuma angka badge ini
     // yang perlu tetap "hidup" walau tab Chat sedang tidak aktif.
     val chatUnreadTotal: Int = 0,
+    // Rincian belum-dibaca PER THREAD (childId thread -> jumlah) - dipakai badge di ChatSubTabs,
+    // beda dari chatUnreadTotal yang cuma jumlah total untuk badge tab Chat itu sendiri.
+    val chatUnreadByThread: Map<String, Int> = emptyMap(),
     // 4 pesan terakhir grup keluarga - pratinjau ringkas di Dashboard (orang tua & anak),
     // terpisah dari thread aktif ChatScreen sendiri, sama seperti dashboardChatPreview di
     // web/app.js. TIDAK menandai thread sebagai terbaca (murni pratinjau).
@@ -287,7 +290,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private suspend fun loadChatUnread(token: String) {
         val summary = PactioApi.getChatUnreadSummary(token)
-        _state.update { it.copy(chatUnreadTotal = summary.total) }
+        _state.update {
+            it.copy(
+                chatUnreadTotal = summary.total,
+                chatUnreadByThread = summary.threads.associate { thread -> thread.childId to thread.unreadCount }
+            )
+        }
     }
 
     /** 4 pesan terakhir grup keluarga, untuk pratinjau Dashboard - lihat komentar dashboardChatPreview di UiState. */

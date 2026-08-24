@@ -173,6 +173,8 @@ private fun PactioApp() {
                     children = state.children,
                     activityLog = state.activityLog,
                     loading = state.loading,
+                    token = state.token,
+                    familyName = state.family?.name,
                     onAddChild = viewModel::addChild,
                     onDeleteChild = viewModel::deleteChild,
                     onResetPin = viewModel::resetChildPin,

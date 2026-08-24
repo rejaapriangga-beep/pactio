@@ -270,17 +270,16 @@ private fun ChildChatTab(
 ) {
     val myId = state.currentUser?.id ?: return
     val activeThreadId = selectedThreadId ?: FAMILY_CHAT_THREAD_ID
-    val options = listOf<Pair<String?, String>>(
+    val options = listOf(
         FAMILY_CHAT_THREAD_ID to "Keluarga (Semua)",
         myId to "Pribadi dengan Orang Tua"
     )
     Column(Modifier.fillMaxSize()) {
-        FilterDropdown(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
-            label = "Percakapan",
-            selectedLabel = options.find { it.first == activeThreadId }?.second ?: "Keluarga (Semua)",
+        ChatSubTabs(
             options = options,
-            onSelect = { value -> value?.let(onSelectThread) }
+            selectedId = activeThreadId,
+            unreadByThread = state.chatUnreadByThread,
+            onSelect = onSelectThread
         )
         ChatScreen(state = state, childId = activeThreadId, onRefreshUnread = onRefreshUnread)
     }

@@ -144,16 +144,30 @@ object PactioApi {
         return (0 until array.length()).map { array.getJSONObject(it).toChatMessageDto() }
     }
 
-    suspend fun sendChatText(token: String, childId: String, text: String): ChatMessageDto {
+    /** replyToId (opsional): id pesan lain di thread yang sama yang sedang dibalas - lihat ChatScreen.kt. */
+    suspend fun sendChatText(token: String, childId: String, text: String, replyToId: String? = null): ChatMessageDto {
         val body = JSONObject().put("type", "text").put("text", text)
+        if (replyToId != null) body.put("replyToId", replyToId)
         val json = request("POST", "/chat/$childId/messages", token = token, body = body)
         return json.getJSONObject("message").toChatMessageDto()
     }
 
-    /** photoDataUri: "data:image/jpeg;base64,..." atau "data:image/png;base64,...". */
-    suspend fun sendChatPhoto(token: String, childId: String, photoDataUri: String): ChatMessageDto {
+    /** photoDataUri: "data:image/jpeg;base64,..." atau "data:image/png;base64,...". replyToId: lihat sendChatText. */
+    suspend fun sendChatPhoto(token: String, childId: String, photoDataUri: String, replyToId: String? = null): ChatMessageDto {
         val body = JSONObject().put("type", "photo").put("photo", photoDataUri)
+        if (replyToId != null) body.put("replyToId", replyToId)
         val json = request("POST", "/chat/$childId/messages", token = token, body = body)
+        return json.getJSONObject("message").toChatMessageDto()
+    }
+
+    /**
+     * Toggle reaksi SAYA dengan emoji ini pada satu pesan - satu pengguna cuma boleh punya satu
+     * reaksi aktif per pesan (lihat komentar lengkap di server.js). emoji harus salah satu dari
+     * CHAT_REACTION_EMOJI di Models.kt, kalau tidak server menolak dengan 400.
+     */
+    suspend fun reactToChatMessage(token: String, childId: String, messageId: String, emoji: String): ChatMessageDto {
+        val body = JSONObject().put("emoji", emoji)
+        val json = request("POST", "/chat/$childId/messages/$messageId/react", token = token, body = body)
         return json.getJSONObject("message").toChatMessageDto()
     }
 
@@ -256,6 +270,18 @@ object PactioApi {
         request("POST", "/children/verify-parent-password", token = token, body = body)
     }
 
+    /**
+     * Membuat backup terenkripsi (server yang mengenkripsi pakai `password` ini - lihat catatan
+     * lengkap di server.js) dan mengembalikannya sebagai JSON mentah untuk disimpan apa adanya
+     * ke penyimpanan yang dipilih orang tua lewat Storage Access Framework. `password` TIDAK
+     * pernah dikirim ulang atau disimpan di Android - hanya dipakai sesaat untuk request ini.
+     */
+    suspend fun createBackup(token: String, password: String): BackupResult {
+        val body = JSONObject().put("password", password)
+        val json = request("POST", "/backup/create", token = token, body = body)
+        return json.toBackupResult()
+    }
+
     private suspend fun request(method: String, path: String, token: String?, body: JSONObject?): JSONObject =
         withContext(Dispatchers.IO) {
             val connection = try {
@@ -349,7 +375,22 @@ object PactioApi {
         text = if (has("text") && !isNull("text")) getString("text") else null,
         photoMime = if (has("photoMime") && !isNull("photoMime")) getString("photoMime") else null,
         photoAvailable = optBoolean("photoAvailable", false),
+        replyToId = if (has("replyToId") && !isNull("replyToId")) getString("replyToId") else null,
+        reactions = optJSONArray("reactions")?.let { array ->
+            (0 until array.length()).map { index ->
+                val reaction = array.getJSONObject(index)
+                ChatReactionDto(userId = reaction.getString("userId"), emoji = reaction.getString("emoji"))
+            }
+        } ?: emptyList(),
         createdAt = getString("createdAt")
+    )
+
+    private fun JSONObject.toBackupResult() = BackupResult(
+        format = getString("format"),
+        salt = getString("salt"),
+        iv = getString("iv"),
+        tag = getString("tag"),
+        ciphertext = getString("ciphertext")
     )
 
     private fun JSONObject.toActivityLogEntryDto() = ActivityLogEntryDto(

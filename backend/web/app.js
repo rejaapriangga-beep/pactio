@@ -49,16 +49,23 @@ const state = {
   chatThreadId: FAMILY_CHAT_THREAD_ID,
   chatMessages: [],
   chatUnreadTotal: 0,
+  chatUnreadByThread: {}, // { [threadId]: count } - badge per sub-tab thread (lihat renderChatSubTabs)
   chatSending: false,
   chatError: null,
+  chatReplyTarget: null, // { id, senderLabel, preview } - pesan yang sedang dibalas, null kalau tidak
+  reactionPickerMessageId: null, // id pesan yang popover pilihan emoji-nya sedang terbuka
   // Dashboard - pratinjau ringkas, terpisah dari state chat tab (chatMessages) supaya tidak
   // saling menimpa saat dua-duanya aktif dipakai.
   dashboardChatPreview: [],
+  dashboardCardModal: null, // "approval" | "children" | "locked" | "tasks" | null
   // Pengaturan
   showAddChild: false,
   childPendingDeleteId: null,
   childPendingResetPinId: null,
-  activityLog: []
+  activityLog: [],
+  showBackupModal: false,
+  backupSending: false,
+  backupError: null
 };
 
 function safeParse(json) {
@@ -70,6 +77,9 @@ function escapeHtml(value) {
 }
 
 const STATUS_LABEL = { assigned: "Belum dikirim", submitted: "Menunggu persetujuan", approved: "Disetujui", rejected: "Ditolak" };
+
+/** Emoji reaksi yang didukung - HARUS SAMA PERSIS dengan ALLOWED_CHAT_REACTIONS di server.js. */
+const CHAT_REACTION_EMOJI = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 
 // --- Panggilan API ------------------------------------------------------------------------
 
@@ -107,8 +117,13 @@ function clearSession() {
   state.tasks = [];
   state.chatMessages = [];
   state.chatUnreadTotal = 0;
+  state.chatUnreadByThread = {};
+  state.chatReplyTarget = null;
+  state.reactionPickerMessageId = null;
   state.dashboardChatPreview = [];
+  state.dashboardCardModal = null;
   state.activityLog = [];
+  state.showBackupModal = false;
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
 }
@@ -145,6 +160,9 @@ async function loadTasks() {
 async function loadChatUnread() {
   const result = await api("GET", "/chat/unread-summary");
   state.chatUnreadTotal = result.total;
+  const byThread = {};
+  result.threads.forEach((t) => { byThread[t.childId] = t.unreadCount; });
+  state.chatUnreadByThread = byThread;
 }
 
 /** 4 pesan terakhir dari grup keluarga, untuk pratinjau di Dashboard - TIDAK menandai thread sebagai terbaca (lihat komentar di loadChatMessages), murni pratinjau. */
@@ -322,6 +340,38 @@ async function handleDeleteChild(childId) {
   });
 }
 
+/**
+ * Membuat backup terenkripsi lewat POST /backup/create (server yang mengenkripsi pakai
+ * kata sandi ini - lihat catatan lengkap di server.js), lalu langsung memicu unduhan berkas
+ * JSON-nya di browser. Kata sandi TIDAK pernah disimpan di mana pun (termasuk localStorage) -
+ * hanya dipakai sesaat untuk request ini.
+ */
+async function handleDownloadBackup(password) {
+  state.backupSending = true;
+  state.backupError = null;
+  render();
+  try {
+    const result = await api("POST", "/backup/create", { password });
+    const blob = new Blob([JSON.stringify(result, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const familyName = (state.family?.name || "pactio").replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `pactio-backup-${familyName}-${dateStr}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    state.showBackupModal = false;
+    state.infoMessage = "Backup terenkripsi berhasil diunduh. Simpan kata sandinya baik-baik - server TIDAK menyimpannya, jadi tanpa kata sandi itu berkas backup ini tidak akan bisa dibuka lagi.";
+  } catch (error) {
+    state.backupError = error.message || "Gagal membuat backup.";
+  }
+  state.backupSending = false;
+  render();
+}
+
 // --- Chat -----------------------------------------------------------------------------
 
 /**
@@ -346,8 +396,12 @@ async function handleSendChatText(text) {
   state.chatError = null;
   render();
   try {
-    const result = await api("POST", `/chat/${state.chatThreadId}/messages`, { type: "text", text: text.trim() });
+    const replyToId = state.chatReplyTarget?.id;
+    const body = { type: "text", text: text.trim() };
+    if (replyToId) body.replyToId = replyToId;
+    const result = await api("POST", `/chat/${state.chatThreadId}/messages`, body);
     state.chatMessages = [...state.chatMessages, result.message];
+    state.chatReplyTarget = null;
   } catch (error) {
     state.chatError = error.message || "Gagal mengirim pesan.";
   }
@@ -362,12 +416,28 @@ async function handleSendChatPhoto(file) {
   render();
   try {
     const dataUri = await readFileAsDataUri(file);
-    const result = await api("POST", `/chat/${state.chatThreadId}/messages`, { type: "photo", photo: dataUri });
+    const replyToId = state.chatReplyTarget?.id;
+    const body = { type: "photo", photo: dataUri };
+    if (replyToId) body.replyToId = replyToId;
+    const result = await api("POST", `/chat/${state.chatThreadId}/messages`, body);
     state.chatMessages = [...state.chatMessages, result.message];
+    state.chatReplyTarget = null;
   } catch (error) {
     state.chatError = error.message || "Gagal mengirim foto.";
   }
   state.chatSending = false;
+  render();
+}
+
+/** Toggle reaksi SAYA dengan emoji ini pada satu pesan - lihat komentar lengkap di POST /chat/:threadId/messages/:id/react (server.js): satu user cuma bisa punya satu reaksi aktif per pesan. */
+async function handleReact(threadId, messageId, emoji) {
+  try {
+    const result = await api("POST", `/chat/${threadId}/messages/${messageId}/react`, { emoji });
+    state.chatMessages = state.chatMessages.map((m) => (m.id === messageId ? result.message : m));
+  } catch (error) {
+    state.chatError = error.message || "Gagal memberi reaksi.";
+  }
+  state.reactionPickerMessageId = null;
   render();
 }
 
@@ -463,6 +533,12 @@ function renderApp() {
   });
   wrap.appendChild(tabs);
 
+  // Sub-tabs pemilih thread ("Semua Anak" + tiap anak) - tepat di bawah menu utama, HANYA
+  // selagi tab Chat aktif. Menggantikan dropdown lama di dalam konten tab Chat.
+  if (state.tab === "chat" && state.children.length > 0) {
+    wrap.appendChild(renderChatSubTabs());
+  }
+
   // Content
   const content = document.createElement("div");
   content.className = "content";
@@ -488,8 +564,35 @@ function renderApp() {
   if (deleteTarget) wrap.appendChild(renderDeleteChildModal(deleteTarget));
   const resetPinTarget = state.children.find((c) => c.id === state.childPendingResetPinId);
   if (resetPinTarget) wrap.appendChild(renderResetPinModal(resetPinTarget));
+  if (state.dashboardCardModal) wrap.appendChild(renderDashboardCardModal());
+  if (state.showBackupModal) wrap.appendChild(renderBackupModal());
 
   return wrap;
+}
+
+/**
+ * Baris sub-tab pemilih thread chat, ditampilkan di bawah menu utama - lihat renderApp().
+ * Konsisten gaya dengan `.tabs`/`.tab` tapi lebih kecil (`.subtabs`/`.subtab`, lihat app.css).
+ */
+function renderChatSubTabs() {
+  const bar = document.createElement("div");
+  bar.className = "subtabs";
+  const options = [{ id: FAMILY_CHAT_THREAD_ID, name: "Semua Anak" }, ...state.children];
+  bar.innerHTML = options.map((o) => {
+    const unread = state.chatUnreadByThread[o.id] || 0;
+    const badge = unread ? `<span class="status-chip status-submitted badge">${unread}</span>` : "";
+    return `<div class="subtab ${state.chatThreadId === o.id ? "active" : ""}" data-thread="${escapeHtml(o.id)}">${escapeHtml(o.name)}${badge}</div>`;
+  }).join("");
+  bar.querySelectorAll(".subtab").forEach((el) => {
+    el.addEventListener("click", () => {
+      state.chatThreadId = el.dataset.thread;
+      state.chatMessages = [];
+      state.chatReplyTarget = null;
+      state.reactionPickerMessageId = null;
+      render();
+    });
+  });
+  return bar;
 }
 
 function tabHtml(key, label, badgeCount) {
@@ -524,14 +627,18 @@ function renderDashboard() {
       ${state.children.length === 0 ? `<p style="color: var(--text-muted); margin-top: 12px;">Belum ada profil anak. Tambah lewat aplikasi Android (Pengaturan).</p>` : ""}
     </div>
     <div class="stat-grid">
-      <div class="stat-card"><div class="value">${approvalCount}</div><div class="label">Menunggu Approval</div></div>
-      <div class="stat-card"><div class="value">${state.children.length}</div><div class="label">Anak</div></div>
-      <div class="stat-card"><div class="value">${lockedCount}</div><div class="label">Terkunci</div></div>
-      <div class="stat-card"><div class="value">${state.tasks.length}</div><div class="label">Total Tugas</div></div>
+      <div class="stat-card stat-card-clickable" data-modal="approval"><div class="value">${approvalCount}</div><div class="label">Menunggu Approval</div></div>
+      <div class="stat-card stat-card-clickable" data-modal="children"><div class="value">${state.children.length}</div><div class="label">Anak</div></div>
+      <div class="stat-card stat-card-clickable" data-modal="locked"><div class="value">${lockedCount}</div><div class="label">Terkunci</div></div>
+      <div class="stat-card stat-card-clickable" data-modal="tasks"><div class="value">${state.tasks.length}</div><div class="label">Total Tugas</div></div>
     </div>
     <button class="btn btn-primary" id="open-create-task" ${state.children.length === 0 ? "disabled" : ""}>+ Buat Tugas</button>
   `;
   el.querySelector("#open-create-task").addEventListener("click", () => { state.showCreateTask = true; render(); });
+  // Tiap kartu ringkasan bisa diklik untuk pop-up review/follow-up cepat tanpa pindah tab dulu.
+  el.querySelectorAll(".stat-card-clickable").forEach((card) => {
+    card.addEventListener("click", () => { state.dashboardCardModal = card.dataset.modal; render(); });
+  });
 
   if (state.children.length > 0) {
     el.appendChild(renderDashboardIncompleteTasks());
@@ -610,6 +717,98 @@ function renderDashboardChatPreview() {
   card.appendChild(openBtn);
 
   return card;
+}
+
+/**
+ * Pop-up review/follow-up cepat saat salah satu kartu ringkasan Dashboard diklik - lihat
+ * data-modal di renderDashboard(). "approval" pakai ulang approvalCard() supaya orang tua bisa
+ * langsung setujui/tolak tanpa pindah tab; "locked" punya tombol buka kunci langsung di tempat.
+ */
+function renderDashboardCardModal() {
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  const modal = document.createElement("div");
+  modal.className = "modal";
+  overlay.appendChild(modal);
+  overlay.addEventListener("click", (event) => { if (event.target === overlay) { state.dashboardCardModal = null; render(); } });
+
+  const closeRow = document.createElement("div");
+  closeRow.className = "modal-close-row";
+  const closeBtn = document.createElement("button");
+  closeBtn.type = "button";
+  closeBtn.className = "btn btn-primary";
+  closeBtn.textContent = "Tutup";
+  closeBtn.addEventListener("click", () => { state.dashboardCardModal = null; render(); });
+  closeRow.appendChild(closeBtn);
+
+  if (state.dashboardCardModal === "approval") {
+    const h2 = document.createElement("h2");
+    h2.textContent = "Menunggu Approval";
+    modal.appendChild(h2);
+    const waiting = state.tasks.filter((t) => t.status === "submitted");
+    if (waiting.length === 0) modal.appendChild(emptyHint("Tidak ada tugas yang menunggu approval."));
+    else waiting.forEach((task) => modal.appendChild(approvalCard(task)));
+  } else if (state.dashboardCardModal === "children") {
+    const h2 = document.createElement("h2");
+    h2.textContent = "Anak";
+    modal.appendChild(h2);
+    if (state.children.length === 0) modal.appendChild(emptyHint("Belum ada profil anak."));
+    else state.children.forEach((child) => {
+      const incomplete = state.tasks.filter((t) => t.childId === child.id && t.status !== "approved").length;
+      const row = document.createElement("div");
+      row.className = "settings-child-row";
+      row.innerHTML = `
+        <span>${escapeHtml(child.name)}</span>
+        <span class="settings-child-actions">
+          ${child.lockModeEnabled ? '<span class="status-chip status-rejected">Terkunci</span>' : ""}
+          <span class="status-chip status-submitted">${incomplete} tugas tertunda</span>
+        </span>
+      `;
+      modal.appendChild(row);
+    });
+  } else if (state.dashboardCardModal === "locked") {
+    const h2 = document.createElement("h2");
+    h2.textContent = "Perangkat Terkunci";
+    modal.appendChild(h2);
+    const locked = state.children.filter((c) => c.lockModeEnabled);
+    if (locked.length === 0) modal.appendChild(emptyHint("Tidak ada perangkat yang terkunci saat ini."));
+    else locked.forEach((child) => {
+      const row = document.createElement("div");
+      row.className = "settings-child-row";
+      row.innerHTML = `<span>${escapeHtml(child.name)}</span>`;
+      const unlockBtn = document.createElement("button");
+      unlockBtn.type = "button";
+      unlockBtn.className = "btn btn-outline btn-sm";
+      unlockBtn.textContent = "Buka Kunci";
+      unlockBtn.disabled = state.loading;
+      unlockBtn.addEventListener("click", () => handleSetLock(child.id, false));
+      row.appendChild(unlockBtn);
+      modal.appendChild(row);
+    });
+  } else if (state.dashboardCardModal === "tasks") {
+    const h2 = document.createElement("h2");
+    h2.textContent = "Semua Tugas";
+    modal.appendChild(h2);
+    if (state.tasks.length === 0) modal.appendChild(emptyHint("Belum ada tugas."));
+    else state.tasks.forEach((task) => {
+      const row = document.createElement("div");
+      row.className = "task-row";
+      const name = childName(task.childId);
+      row.innerHTML = `
+        <div class="info">
+          <div class="title">${escapeHtml(task.title)}</div>
+          <div class="meta">${name ? escapeHtml(name) + " &middot; " : ""}${task.rewardMinutes} menit</div>
+        </div>
+        <span class="status-chip status-${task.status}">${STATUS_LABEL[task.status] || task.status}</span>
+      `;
+      // Tutup pop-up ini SEKALIGUS buka detail tugas dalam satu render - bukan dua modal bertumpuk.
+      row.addEventListener("click", () => { state.detailTaskId = task.id; state.dashboardCardModal = null; render(); });
+      modal.appendChild(row);
+    });
+  }
+
+  modal.appendChild(closeRow);
+  return overlay;
 }
 
 function renderCreateTaskModal() {
@@ -909,8 +1108,57 @@ function renderSettingsTab() {
   card.appendChild(addBtn);
 
   el.appendChild(card);
+  el.appendChild(renderBackupCard());
   el.appendChild(renderActivityLogCard());
   return el;
+}
+
+/** Lihat handleDownloadBackup untuk alur lengkapnya (server mengenkripsi, browser langsung mengunduh). */
+function renderBackupCard() {
+  const card = document.createElement("div");
+  card.className = "card";
+  card.innerHTML = `
+    <h3 style="margin-top: 0;">Cadangan Data</h3>
+    <p style="color: var(--text-muted); font-size: 13px;">
+      Unduh salinan data keluarga (profil anak, tugas, riwayat chat) sebagai berkas terenkripsi
+      ke perangkat kamu. Kata sandinya kamu tentukan sendiri saat mengunduh - server TIDAK
+      menyimpannya, jadi simpan baik-baik.
+    </p>
+    <button type="button" class="btn btn-outline" id="open-backup">Unduh Backup Terenkripsi</button>
+  `;
+  card.querySelector("#open-backup").addEventListener("click", () => { state.showBackupModal = true; render(); });
+  return card;
+}
+
+function renderBackupModal() {
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.innerHTML = `
+    <div class="modal">
+      <h2>Unduh Backup Terenkripsi</h2>
+      <p style="color: var(--text-muted);">Buat kata sandi backup (minimal 8 karakter). Kata sandi ini HARUS kamu ingat sendiri - dipakai lagi nanti untuk membuka berkas ini, server tidak menyimpannya sama sekali.</p>
+      ${state.backupError ? `<div class="banner banner-error">${escapeHtml(state.backupError)}</div>` : ""}
+      <form id="backup-form">
+        <div class="field"><label>Kata sandi backup</label><input type="password" name="password" minlength="8" required autofocus /></div>
+        <div class="field"><label>Ulangi kata sandi</label><input type="password" name="confirm" minlength="8" required /></div>
+        <div class="modal-close-row">
+          <button type="button" class="btn btn-text" id="cancel-backup">Batal</button>
+          <button type="submit" class="btn btn-primary" ${state.backupSending ? "disabled" : ""}>Unduh Backup</button>
+        </div>
+      </form>
+    </div>
+  `;
+  overlay.addEventListener("click", (event) => { if (event.target === overlay) { state.showBackupModal = false; state.backupError = null; render(); } });
+  overlay.querySelector("#cancel-backup").addEventListener("click", () => { state.showBackupModal = false; state.backupError = null; render(); });
+  overlay.querySelector("#backup-form").addEventListener("submit", (event) => {
+    event.preventDefault();
+    const form = new FormData(event.target);
+    const password = String(form.get("password") || "");
+    const confirm = String(form.get("confirm") || "");
+    if (password !== confirm) { state.backupError = "Kata sandi tidak sama."; render(); return; }
+    handleDownloadBackup(password);
+  });
+  return overlay;
 }
 
 /** Label Indonesia untuk tiap kode `action` dari GET /activity-log - server sengaja mengirim kode mentah (bukan teks siap-tampil), sama seperti STATUS_LABEL untuk status tugas. */
@@ -925,7 +1173,8 @@ const ACTIVITY_ACTION_LABEL = {
   task_submitted: "Mengirim bukti tugas",
   task_approved: "Menyetujui tugas",
   task_rejected: "Menolak tugas",
-  access_redeemed: "Menukar saldo menit jadi waktu akses"
+  access_redeemed: "Menukar saldo menit jadi waktu akses",
+  backup_created: "Mengunduh backup terenkripsi"
 };
 
 function renderActivityLogCard() {
@@ -1061,20 +1310,8 @@ function renderChatTab() {
     return el;
   }
 
-  const options = [{ id: FAMILY_CHAT_THREAD_ID, name: "Semua Anak" }, ...state.children];
-  const filterRow = document.createElement("div");
-  filterRow.className = "filter-row";
-  filterRow.innerHTML = `
-    <select id="chat-thread-select">
-      ${options.map((o) => `<option value="${escapeHtml(o.id)}" ${state.chatThreadId === o.id ? "selected" : ""}>${escapeHtml(o.name)}</option>`).join("")}
-    </select>
-  `;
-  filterRow.querySelector("#chat-thread-select").addEventListener("change", (event) => {
-    state.chatThreadId = event.target.value;
-    state.chatMessages = [];
-    render();
-  });
-  el.appendChild(filterRow);
+  // Pemilih thread sudah dipindah jadi baris sub-tab di bawah menu utama - lihat
+  // renderChatSubTabs() (dipanggil dari renderApp()), bukan dropdown di sini lagi.
 
   if (state.chatError) el.appendChild(banner("error", state.chatError, () => { state.chatError = null; render(); }));
 
@@ -1083,6 +1320,17 @@ function renderChatTab() {
   messagesEl.id = "chat-messages";
   el.appendChild(messagesEl);
   renderChatMessages(messagesEl);
+
+  if (state.chatReplyTarget) {
+    const strip = document.createElement("div");
+    strip.className = "chat-reply-strip";
+    strip.innerHTML = `
+      <div class="chat-reply-strip-text"><strong>${escapeHtml(state.chatReplyTarget.senderLabel)}</strong>: ${escapeHtml(state.chatReplyTarget.preview)}</div>
+      <button type="button" class="chat-reply-strip-close">&times;</button>
+    `;
+    strip.querySelector(".chat-reply-strip-close").addEventListener("click", () => { state.chatReplyTarget = null; render(); });
+    el.appendChild(strip);
+  }
 
   const form = document.createElement("form");
   form.className = "chat-composer";
@@ -1122,6 +1370,12 @@ function renderChatMessages(container) {
   container.scrollTop = container.scrollHeight;
 }
 
+/** Label pengirim singkat dipakai berulang (quote balasan, pratinjau balas) - "Kamu" untuk pesan sendiri. */
+function senderLabelFor(message) {
+  if (message.senderId === state.user.id) return "Kamu";
+  return message.senderRole === "parent" ? "Orang Tua" : (childName(message.senderId) || "Anak");
+}
+
 function chatBubble(message) {
   const isMine = message.senderId === state.user.id;
   const wrap = document.createElement("div");
@@ -1133,8 +1387,22 @@ function chatBubble(message) {
   if (!isMine) {
     const label = document.createElement("div");
     label.className = "chat-sender";
-    label.textContent = message.senderRole === "parent" ? "Orang Tua" : (childName(message.senderId) || "Anak");
+    label.textContent = senderLabelFor(message);
     bubble.appendChild(label);
+  }
+
+  // Kutipan pesan yang dibalas (kalau ada & masih ada dalam riwayat yang sudah dimuat) - lihat
+  // replyToId di server.js. Diam-diam dilewati kalau target tidak ditemukan (mis. di luar 200
+  // pesan terakhir), bukan error - kutipan cuma pemanis, bukan data penting.
+  if (message.replyToId) {
+    const target = state.chatMessages.find((m) => m.id === message.replyToId);
+    if (target) {
+      const quote = document.createElement("div");
+      quote.className = "chat-quote";
+      const preview = target.type === "photo" ? "📷 Foto" : (target.text || "");
+      quote.innerHTML = `<span class="chat-quote-sender">${escapeHtml(senderLabelFor(target))}</span><span class="chat-quote-text">${escapeHtml(preview)}</span>`;
+      bubble.appendChild(quote);
+    }
   }
 
   if (message.type === "photo") {
@@ -1159,6 +1427,56 @@ function chatBubble(message) {
   time.className = "chat-time";
   time.textContent = formatChatTime(message.createdAt);
   bubble.appendChild(time);
+
+  // Reaksi yang sudah ada, dikelompokkan per emoji - klik pill = toggle reaksi SAYA dengan
+  // emoji itu (jalan pintas, sama efeknya dengan pilih dari popover di bawah).
+  if (message.reactions && message.reactions.length > 0) {
+    const grouped = {};
+    message.reactions.forEach((r) => { (grouped[r.emoji] = grouped[r.emoji] || []).push(r.userId); });
+    const pills = document.createElement("div");
+    pills.className = "chat-reactions";
+    Object.entries(grouped).forEach(([emoji, userIds]) => {
+      const pill = document.createElement("button");
+      pill.type = "button";
+      pill.className = `chat-reaction-pill ${userIds.includes(state.user.id) ? "mine" : ""}`;
+      pill.textContent = `${emoji} ${userIds.length}`;
+      pill.addEventListener("click", () => handleReact(message.childId, message.id, emoji));
+      pills.appendChild(pill);
+    });
+    bubble.appendChild(pills);
+  }
+
+  const actionsRow = document.createElement("div");
+  actionsRow.className = "chat-bubble-actions";
+  actionsRow.innerHTML = `
+    <button type="button" class="chat-action-btn" data-action="reply" title="Balas">↩ Balas</button>
+    <button type="button" class="chat-action-btn" data-action="react" title="Beri reaksi">🙂 Reaksi</button>
+  `;
+  actionsRow.querySelector('[data-action="reply"]').addEventListener("click", () => {
+    const preview = message.type === "photo" ? "📷 Foto" : (message.text || "");
+    state.chatReplyTarget = { id: message.id, senderLabel: senderLabelFor(message), preview };
+    state.reactionPickerMessageId = null;
+    render();
+    document.getElementById("chat-text-input")?.focus();
+  });
+  actionsRow.querySelector('[data-action="react"]').addEventListener("click", () => {
+    state.reactionPickerMessageId = state.reactionPickerMessageId === message.id ? null : message.id;
+    render();
+  });
+  bubble.appendChild(actionsRow);
+
+  if (state.reactionPickerMessageId === message.id) {
+    const picker = document.createElement("div");
+    picker.className = "chat-reaction-picker";
+    CHAT_REACTION_EMOJI.forEach((emoji) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = emoji;
+      btn.addEventListener("click", () => handleReact(message.childId, message.id, emoji));
+      picker.appendChild(btn);
+    });
+    bubble.appendChild(picker);
+  }
 
   wrap.appendChild(bubble);
   return wrap;
