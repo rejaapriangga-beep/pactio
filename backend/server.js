@@ -565,6 +565,10 @@ async function route(req, res) {
   if (req.method === "GET" && pathname === "/") { if (serveStatic(res, "index.html")) return; }
   if (req.method === "GET" && pathname === "/app.js") { if (serveStatic(res, "app.js")) return; }
   if (req.method === "GET" && pathname === "/app.css") { if (serveStatic(res, "app.css")) return; }
+  // Halaman kebijakan privasi publik - wajib punya URL publik untuk submit ke Google Play
+  // Console (bagian "App content" -> "Privacy policy"), jadi disajikan sebagai halaman statis
+  // biasa (tanpa login) di domain yang sama, bukan dokumen terpisah di tempat lain.
+  if (req.method === "GET" && pathname === "/privacy") { if (serveStatic(res, "privacy.html")) return; }
 
   if (req.method === "GET" && pathname === "/health") return send(res, 200, { ok: true });
 

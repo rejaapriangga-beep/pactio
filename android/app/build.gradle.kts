@@ -29,6 +29,15 @@ android {
     // di HP, harus uninstall dulu (terbukti nyata: INSTALL_FAILED_UPDATE_INCOMPATIBLE).
     // Ini debug key biasa (bukan release/production), aman disimpan di repo publik —
     // sama seperti debug.keystore default Android Studio yang juga dibagi banyak developer.
+    //
+    // Keystore rilis (upload key Google Play) SENGAJA TIDAK disimpan di repo maupun
+    // di-hardcode di sini — kredensialnya dibaca dari environment variable saat build.
+    // Di CI, keystore-nya sendiri didekode dari secret base64 langsung ke file sementara
+    // (lihat android-build.yml), passwordnya juga dari secret. Kalau env var ini tidak
+    // ada (mis. build lokal biasa tanpa niat rilis), build type "release" otomatis jatuh
+    // ke signing config debug supaya tetap bisa di-build untuk testing.
+    val releaseKeystorePath = System.getenv("TIMECRAFT_RELEASE_KEYSTORE_PATH")
+
     signingConfigs {
         getByName("debug") {
             storeFile = file("debug.keystore")
@@ -36,11 +45,22 @@ android {
             keyAlias = "androiddebugkey"
             keyPassword = "android"
         }
+        if (releaseKeystorePath != null) {
+            create("release") {
+                storeFile = file(releaseKeystorePath)
+                storePassword = System.getenv("TIMECRAFT_RELEASE_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("TIMECRAFT_RELEASE_KEY_ALIAS")
+                keyPassword = System.getenv("TIMECRAFT_RELEASE_KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
         getByName("debug") {
             signingConfig = signingConfigs.getByName("debug")
+        }
+        getByName("release") {
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
     }
 }

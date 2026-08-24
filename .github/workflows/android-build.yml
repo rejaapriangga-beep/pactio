@@ -46,3 +46,57 @@ jobs:
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
+
+  # Build AAB rilis bertanda tangan untuk diunggah ke Google Play Console.
+  # Hanya jalan kalau secret keystore-nya sudah diisi di pengaturan repo GitHub
+  # (Settings -> Secrets and variables -> Actions) - kalau belum, job ini dilewati
+  # begitu saja (bukan error) supaya tidak menghalangi build debug APK di atas.
+  build-release-aab:
+    runs-on: ubuntu-latest
+    if: ${{ vars.RELEASE_SIGNING_READY == 'true' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install SDK platform & build-tools yang dibutuhkan
+        run: sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Grant execute permission for gradlew
+        working-directory: android
+        run: chmod +x gradlew
+
+      - name: Decode keystore rilis dari secret
+        working-directory: android/app
+        run: echo "${{ secrets.TIMECRAFT_RELEASE_KEYSTORE_BASE64 }}" | base64 -d > timecraft-upload.keystore
+
+      - name: Build AAB rilis
+        working-directory: android
+        env:
+          TIMECRAFT_RELEASE_KEYSTORE_PATH: timecraft-upload.keystore
+          TIMECRAFT_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.TIMECRAFT_RELEASE_KEYSTORE_PASSWORD }}
+          TIMECRAFT_RELEASE_KEY_ALIAS: ${{ secrets.TIMECRAFT_RELEASE_KEY_ALIAS }}
+          TIMECRAFT_RELEASE_KEY_PASSWORD: ${{ secrets.TIMECRAFT_RELEASE_KEY_PASSWORD }}
+        run: ./gradlew bundleRelease --stacktrace
+
+      - name: Hapus keystore dari runner
+        if: always()
+        working-directory: android/app
+        run: rm -f timecraft-upload.keystore
+
+      - name: Upload AAB rilis
+        uses: actions/upload-artifact@v4
+        with:
+          name: timecraft-release-aab
+          path: android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          retention-days: 90

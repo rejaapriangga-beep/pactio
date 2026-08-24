@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kebijakan Privasi - TimeCraft</title>
+  <style>
+    body { font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; max-width: 760px; margin: 0 auto; padding: 32px 20px 80px; color: #2E2622; line-height: 1.6; }
+    h1 { color: #E2623C; }
+    h2 { color: #C24E2C; margin-top: 2em; }
+    .updated { color: #7D7269; font-size: 0.9em; }
+    ul { padding-left: 22px; }
+    li { margin-bottom: 6px; }
+    a { color: #E2623C; }
+    .box { background: #FBE6DD; border-radius: 10px; padding: 14px 18px; margin: 18px 0; }
+  </style>
+</head>
+<body>
+  <h1>Kebijakan Privasi TimeCraft</h1>
+  <p class="updated">Terakhir diperbarui: 24 Agustus 2026</p>
+
+  <p>TimeCraft adalah aplikasi kontrol dan manajemen tugas keluarga yang dipakai secara privat oleh
+  satu keluarga, dikelola sendiri oleh orang tua (pengelola akun). Halaman ini menjelaskan data apa
+  yang dikumpulkan, bagaimana digunakan, dan hak pengguna atas data tersebut.</p>
+
+  <div class="box">
+    <strong>Prinsip utama:</strong> TimeCraft tidak pernah memantau perangkat anak secara tersembunyi.
+    Semua fitur kontrol perangkat memerlukan izin eksplisit dari sistem Android, terlihat oleh
+    pengguna perangkat, dan dapat dicabut kapan saja lewat Pengaturan sistem.
+  </div>
+
+  <h2>Data yang Dikumpulkan</h2>
+  <ul>
+    <li><strong>Akun orang tua:</strong> nama, alamat email, dan kata sandi (disimpan dalam bentuk hash
+      scrypt yang tidak bisa dibalik ke bentuk asli - server tidak pernah menyimpan kata sandi asli).</li>
+    <li><strong>Akun anak:</strong> nama dan PIN 6 digit (disimpan dalam bentuk hash, sama seperti kata
+      sandi orang tua).</li>
+    <li><strong>Data tugas:</strong> judul, deskripsi, status, bukti penyelesaian tugas (foto/dokumen
+      yang diunggah anak atau orang tua untuk verifikasi tugas).</li>
+    <li><strong>Pesan chat keluarga:</strong> teks dan foto yang dikirim antar anggota keluarga di dalam
+      aplikasi. Teks chat dienkripsi (AES-256-GCM) saat disimpan di server. Foto chat hanya diteruskan
+      sementara ke penerima dan otomatis dihapus dari server setelah beberapa waktu - tidak disimpan
+      permanen di server.</li>
+    <li><strong>Log aktivitas:</strong> catatan tindakan yang dilakukan orang tua (mis. mengunci
+      perangkat, menyetujui tugas) untuk transparansi - hanya terlihat oleh orang tua di keluarga
+      yang sama.</li>
+    <li><strong>Status kunci perangkat:</strong> status aktif/nonaktif dari fitur kunci perangkat yang
+      diaktifkan orang tua.</li>
+  </ul>
+
+  <h2>Bagaimana Data Digunakan</h2>
+  <p>Semua data di atas digunakan semata-mata untuk menjalankan fitur aplikasi di dalam satu keluarga:
+  manajemen tugas, komunikasi keluarga, dan kontrol perangkat oleh orang tua. TimeCraft <strong>tidak
+  menjual, membagikan, atau menampilkan iklan menggunakan data pengguna kepada pihak ketiga mana pun.</strong>
+  Tidak ada data yang dipakai untuk pelacakan lintas aplikasi/situs, profil iklan, atau analitik pihak
+  ketiga.</p>
+
+  <h2>Penyimpanan dan Keamanan</h2>
+  <ul>
+    <li>Data disimpan di server milik keluarga sendiri (self-hosted), bukan di infrastruktur pihak ketiga.</li>
+    <li>Semua komunikasi antara aplikasi dan server dienkripsi lewat HTTPS/TLS.</li>
+    <li>Kata sandi dan PIN disimpan dalam bentuk hash (scrypt), tidak pernah dalam bentuk teks biasa.</li>
+    <li>Teks pesan chat dienkripsi saat disimpan (AES-256-GCM).</li>
+    <li>Token sesi login disimpan di perangkat Android menggunakan penyimpanan terenkripsi berbasis
+      Android Keystore (EncryptedSharedPreferences).</li>
+  </ul>
+
+  <h2>Kontrol Perangkat (Fitur Kunci Perangkat)</h2>
+  <p>TimeCraft menyediakan fitur kunci perangkat yang dapat diaktifkan orang tua untuk membatasi
+  penggunaan HP anak. Fitur ini:</p>
+  <ul>
+    <li>Menggunakan izin resmi Android (<em>Display over other apps / SYSTEM_ALERT_WINDOW</em>) yang
+      harus diberikan secara manual oleh pengguna lewat Pengaturan sistem - tidak pernah aktif diam-diam.</li>
+    <li>Selalu terlihat oleh pengguna perangkat: layar kunci ditampilkan penuh, ada notifikasi permanen
+      saat layanan kontrol aktif.</li>
+    <li>Bukan accessibility service, bukan root, bukan device admin/device owner tersembunyi, dan tidak
+      merekam aktivitas penjelajahan, pesan pribadi, lokasi, atau konten di luar aplikasi TimeCraft.</li>
+    <li>Izin ini dapat dicabut kapan saja oleh pengguna perangkat lewat Pengaturan sistem.</li>
+  </ul>
+
+  <h2>Berbagi Data dengan Pihak Ketiga</h2>
+  <p>TimeCraft tidak membagikan data pengguna ke pihak ketiga mana pun untuk tujuan pemasaran,
+  periklanan, atau penjualan data. Karena aplikasi ini self-hosted, tidak ada penyedia layanan pihak
+  ketiga (analitik, iklan, cloud storage pihak ketiga) yang terlibat dalam pemrosesan data.</p>
+
+  <h2>Hak Pengguna</h2>
+  <p>Sebagai pengelola akun keluarga, orang tua dapat meminta penghapusan akun/data keluarga kapan saja
+  dengan menghubungi kontak di bawah. Backup data terenkripsi juga dapat diunduh langsung oleh orang
+  tua lewat dashboard aplikasi.</p>
+
+  <h2>Anak dan Privasi</h2>
+  <p>TimeCraft dirancang untuk dipakai dalam pengawasan orang tua terhadap anak di bawah kendali mereka
+  sendiri, dengan persetujuan dan sepengetahuan anak (bukan pemantauan tersembunyi). Data terkait anak
+  hanya dapat diakses oleh orang tua/wali dalam keluarga yang sama.</p>
+
+  <h2>Perubahan Kebijakan Ini</h2>
+  <p>Kebijakan privasi ini dapat diperbarui sewaktu-waktu. Tanggal pembaruan terakhir tercantum di
+  bagian atas halaman.</p>
+
+  <h2>Kontak</h2>
+  <p>Pertanyaan seputar privasi atau permintaan penghapusan data dapat dikirim ke:
+  <a href="mailto:reja.apriangga@protonmail.com">reja.apriangga@protonmail.com</a></p>
+</body>
+</html>
