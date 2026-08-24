@@ -16,6 +16,12 @@ fs.mkdirSync(PHOTOS_DIR, { recursive: true });
 const MAX_EVIDENCE_FILE_BYTES = 5 * 1024 * 1024; // 5MB per berkas
 const MAX_EVIDENCE_FILES = 5; // per pengiriman tugas
 
+// Dashboard web orang tua (HTML/CSS/JS statis di folder web/, tanpa build step) - disajikan
+// same-origin dari proses Node yang sama (lihat serveStatic() & route() di bawah), jadi tidak
+// perlu server web terpisah atau konfigurasi CORS.
+const WEB_DIR = path.join(__dirname, "web");
+const STATIC_CONTENT_TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8" };
+
 // Foto chat HANYA diteruskan (relay) ke penerima, TIDAK disimpan permanen di server - sesuai
 // permintaan eksplisit ("fotonya disimpan di lokal pengirim dan penerima, hanya lewat saja di
 // server"). Byte foto ditaruh sementara di sini, disalin ke penyimpanan lokal masing-masing
@@ -412,9 +418,34 @@ function publicChatMessage(message) {
 sweepStaleChatPhotos();
 setInterval(sweepStaleChatPhotos, 60 * 60 * 1000).unref();
 
+/**
+ * Menyajikan satu berkas statis dashboard web dari WEB_DIR kalau ada, atau mengembalikan false
+ * kalau tidak (supaya pemanggil bisa lanjut ke rute API biasa / 404 standar). relPath HARUS
+ * berasal dari daftar tetap yang di-hardcode di pemanggil (lihat route()) - TIDAK pernah dari
+ * input pengguna - jadi tidak butuh pengecekan path traversal terpisah.
+ */
+function serveStatic(res, relPath) {
+  const filePath = path.join(WEB_DIR, relPath);
+  if (!fs.existsSync(filePath)) return false;
+  const ext = path.extname(filePath);
+  const buffer = fs.readFileSync(filePath);
+  res.writeHead(200, {
+    "Content-Type": STATIC_CONTENT_TYPES[ext] || "application/octet-stream",
+    // no-cache (bukan no-store) - browser tetap boleh menyimpan tapi wajib validasi ulang,
+    // supaya pembaruan dashboard setelah redeploy langsung terlihat tanpa perlu hard refresh.
+    "Cache-Control": "no-cache"
+  });
+  res.end(buffer);
+  return true;
+}
+
 async function route(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const pathname = url.pathname;
+
+  if (req.method === "GET" && pathname === "/") { if (serveStatic(res, "index.html")) return; }
+  if (req.method === "GET" && pathname === "/app.js") { if (serveStatic(res, "app.js")) return; }
+  if (req.method === "GET" && pathname === "/app.css") { if (serveStatic(res, "app.css")) return; }
 
   if (req.method === "GET" && pathname === "/health") return send(res, 200, { ok: true });
 
