@@ -132,9 +132,19 @@ button { font-family: inherit; }
 .card h2, .card h3 { margin-top: 0; }
 
 .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 16px; }
-.stat-card { background: var(--surface); border-radius: 16px; box-shadow: var(--shadow); padding: 16px; }
+.stat-card { background: var(--surface); border-radius: 16px; box-shadow: var(--shadow); padding: 16px; border-top: 4px solid transparent; }
 .stat-card .value { font-size: 28px; font-weight: 800; }
 .stat-card .label { color: var(--text-muted); font-size: 13px; margin-top: 2px; }
+
+/* Warna aksen per kartu ringkasan Dashboard - lebih hidup daripada kartu putih polos sebelumnya. */
+.stat-card-approval { border-top-color: var(--warn-text); }
+.stat-card-approval .value { color: var(--warn-text); }
+.stat-card-children { border-top-color: var(--primary); }
+.stat-card-children .value { color: var(--primary); }
+.stat-card-locked { border-top-color: var(--error-text); }
+.stat-card-locked .value { color: var(--error-text); }
+.stat-card-tasks { border-top-color: var(--success-text); }
+.stat-card-tasks .value { color: var(--success-text); }
 
 .family-code {
   display: inline-block;
@@ -308,8 +318,8 @@ button { font-family: inherit; }
 .activity-log-time { color: var(--text-muted); font-size: 12px; white-space: nowrap; flex-shrink: 0; }
 
 /* --- Dashboard: tugas belum selesai per anak --- */
-.dash-child-group { margin-top: 14px; }
-.dash-child-group:first-of-type { margin-top: 4px; }
+.dash-child-group { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+.dash-child-group:first-of-type { margin-top: 4px; padding-top: 0; border-top: none; }
 .dash-child-name { font-weight: 700; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
 .dash-task-mini-empty { color: var(--text-muted); font-size: 13px; padding: 4px 0 2px; }
 .dash-task-mini {

@@ -628,10 +628,10 @@ function renderDashboard() {
       ${state.children.length === 0 ? `<p style="color: var(--text-muted); margin-top: 12px;">Belum ada profil anak. Tambah lewat aplikasi Android (Pengaturan).</p>` : ""}
     </div>
     <div class="stat-grid">
-      <div class="stat-card stat-card-clickable" data-modal="approval"><div class="value">${approvalCount}</div><div class="label">Menunggu Approval</div></div>
-      <div class="stat-card stat-card-clickable" data-modal="children"><div class="value">${state.children.length}</div><div class="label">Anak</div></div>
-      <div class="stat-card stat-card-clickable" data-modal="locked"><div class="value">${lockedCount}</div><div class="label">Terkunci</div></div>
-      <div class="stat-card stat-card-clickable" data-modal="tasks"><div class="value">${state.tasks.length}</div><div class="label">Total Tugas</div></div>
+      <div class="stat-card stat-card-clickable stat-card-approval" data-modal="approval"><div class="value">${approvalCount}</div><div class="label">Menunggu Approval</div></div>
+      <div class="stat-card stat-card-clickable stat-card-children" data-modal="children"><div class="value">${state.children.length}</div><div class="label">Anak</div></div>
+      <div class="stat-card stat-card-clickable stat-card-locked" data-modal="locked"><div class="value">${lockedCount}</div><div class="label">Terkunci</div></div>
+      <div class="stat-card stat-card-clickable stat-card-tasks" data-modal="tasks"><div class="value">${state.tasks.length}</div><div class="label">Total Tugas</div></div>
     </div>
     <button class="btn btn-primary" id="open-create-task" ${state.children.length === 0 ? "disabled" : ""}>+ Buat Tugas</button>
   `;
@@ -864,6 +864,17 @@ function renderTaskList() {
   filterRow.querySelector("#filter-status").addEventListener("change", (e) => { state.taskFilter.status = e.target.value; render(); });
   el.appendChild(filterRow);
 
+  // Sebelumnya cuma ada di Dashboard - dipindah/disalin ke sini juga supaya orang tua bisa
+  // langsung buat tugas baru dari mana pun sedang melihat daftar tugas, tanpa harus pindah tab.
+  const createBtn = document.createElement("button");
+  createBtn.type = "button";
+  createBtn.className = "btn btn-primary btn-sm";
+  createBtn.style.marginBottom = "14px";
+  createBtn.textContent = "+ Buat Tugas";
+  createBtn.disabled = state.children.length === 0;
+  createBtn.addEventListener("click", () => { state.showCreateTask = true; render(); });
+  el.appendChild(createBtn);
+
   const filtered = state.tasks.filter((t) =>
     (!state.taskFilter.status || t.status === state.taskFilter.status) &&
     (!state.taskFilter.childId || t.childId === state.taskFilter.childId)
@@ -909,7 +920,7 @@ function renderTaskDetailModal(task) {
       <h2>${escapeHtml(task.title)}</h2>
       <span class="status-chip status-${task.status}">${STATUS_LABEL[task.status] || task.status}</span>
       ${name ? `<p style="margin: 10px 0 0; color: var(--text-muted);">Anak: ${escapeHtml(name)}</p>` : ""}
-      <p style="color: var(--primary); font-weight: 700;">Hadiah: ${task.rewardMinutes} menit akses</p>
+      <p style="color: var(--warn-text); font-weight: 700;">Hadiah: ${task.rewardMinutes} menit akses</p>
       ${task.description ? `<p>${escapeHtml(task.description)}</p>` : ""}
       ${task.evidence ? `<p><strong>Bukti (teks):</strong> ${escapeHtml(task.evidence)}</p>` : ""}
       ${task.evidenceFiles && task.evidenceFiles.length ? `<div><strong>Berkas bukti:</strong></div><div class="evidence-gallery" id="evidence-gallery"></div>` : ""}

@@ -14,6 +14,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -37,6 +38,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.FactCheck
+import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.AlertDialog
@@ -72,7 +74,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontStyle
@@ -144,7 +148,8 @@ fun ParentScreen(
                 onSelectStatus = { statusFilter = it },
                 childFilter = childFilter,
                 onSelectChild = { childFilter = it },
-                onOpenDetail = { detailTask = it }
+                onOpenDetail = { detailTask = it },
+                onCreateTask = { showCreateTask = true }
             )
             2 -> ParentApprovalTab(state = state, onDecide = onDecide)
             3 -> ParentChatTab(
@@ -509,12 +514,28 @@ private fun ParentDashboardTab(
             }
 
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                DashboardStatCard(modifier = Modifier.weight(1f), label = "Menunggu Approval", value = approvalCount.toString(), onClick = { cardModal = "approval" })
-                DashboardStatCard(modifier = Modifier.weight(1f), label = "Anak", value = state.children.size.toString(), onClick = { cardModal = "children" })
+                DashboardStatCard(
+                    modifier = Modifier.weight(1f), label = "Menunggu Approval", value = approvalCount.toString(),
+                    icon = Icons.Default.FactCheck, accentColor = MaterialTheme.colorScheme.secondary,
+                    onClick = { cardModal = "approval" }
+                )
+                DashboardStatCard(
+                    modifier = Modifier.weight(1f), label = "Anak", value = state.children.size.toString(),
+                    icon = Icons.Default.Group, accentColor = MaterialTheme.colorScheme.primary,
+                    onClick = { cardModal = "children" }
+                )
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                DashboardStatCard(modifier = Modifier.weight(1f), label = "Terkunci", value = state.children.count { it.lockModeEnabled }.toString(), onClick = { cardModal = "locked" })
-                DashboardStatCard(modifier = Modifier.weight(1f), label = "Total Tugas", value = state.tasks.size.toString(), onClick = { cardModal = "tasks" })
+                DashboardStatCard(
+                    modifier = Modifier.weight(1f), label = "Terkunci", value = state.children.count { it.lockModeEnabled }.toString(),
+                    icon = Icons.Default.Lock, accentColor = MaterialTheme.colorScheme.error,
+                    onClick = { cardModal = "locked" }
+                )
+                DashboardStatCard(
+                    modifier = Modifier.weight(1f), label = "Total Tugas", value = state.tasks.size.toString(),
+                    icon = Icons.Default.Checklist, accentColor = MaterialTheme.colorScheme.tertiary,
+                    onClick = { cardModal = "tasks" }
+                )
             }
 
             if (state.children.isNotEmpty()) {
@@ -693,8 +714,12 @@ private fun IncompleteTasksByChildCard(children: List<UserDto>, tasks: List<Task
     Card {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
             Text("Tugas Belum Selesai", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
-            children.forEach { child ->
+            children.forEachIndexed { index, child ->
                 val incomplete = tasks.filter { it.childId == child.id && it.status != "approved" }
+                if (index > 0) {
+                    Spacer(Modifier.height(10.dp))
+                    HorizontalDivider()
+                }
                 Spacer(Modifier.height(10.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(child.name, fontWeight = FontWeight.SemiBold)
@@ -771,10 +796,18 @@ fun DashboardChatPreviewCard(messages: List<ChatMessageDto>, currentUserId: Stri
 }
 
 @Composable
-private fun DashboardStatCard(modifier: Modifier = Modifier, label: String, value: String, onClick: () -> Unit) {
-    Card(modifier = modifier.clickable(onClick = onClick), shape = RoundedCornerShape(16.dp)) {
+/** Ikon + warna aksen per kartu ringkasan - lebih hidup daripada kartu putih polos sebelumnya, sesuai permintaan "lebih berwarna". */
+@Composable
+private fun DashboardStatCard(modifier: Modifier = Modifier, label: String, value: String, icon: ImageVector, accentColor: Color, onClick: () -> Unit) {
+    Card(
+        modifier = modifier.clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = accentColor.copy(alpha = 0.12f))
+    ) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
-            Text(value, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Icon(icon, contentDescription = null, tint = accentColor, modifier = Modifier.size(22.dp))
+            Spacer(Modifier.height(6.dp))
+            Text(value, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = accentColor)
             Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
@@ -788,31 +821,48 @@ private fun ParentTaskListTab(
     onSelectStatus: (String?) -> Unit,
     childFilter: String?,
     onSelectChild: (String?) -> Unit,
-    onOpenDetail: (TaskDto) -> Unit
+    onOpenDetail: (TaskDto) -> Unit,
+    onCreateTask: () -> Unit
 ) {
-    Column(Modifier.fillMaxSize().padding(16.dp)) {
-        TaskFilterRow(
-            children = state.children,
-            selectedChildId = childFilter,
-            onSelectChild = onSelectChild,
-            selectedStatus = statusFilter,
-            onSelectStatus = onSelectStatus
-        )
-        Spacer(Modifier.height(8.dp))
-        val filteredTasks = state.tasks.filter { task ->
-            (statusFilter == null || task.status == statusFilter) && (childFilter == null || task.childId == childFilter)
-        }
-        if (filteredTasks.isEmpty()) {
-            Text("Tidak ada tugas yang cocok dengan filter.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                items(filteredTasks, key = { it.id }) { task ->
-                    TaskSummaryCard(
-                        task = task,
-                        childName = state.children.find { it.id == task.childId }?.name,
-                        onClick = { onOpenDetail(task) }
-                    )
+    Box(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize().padding(16.dp)) {
+            TaskFilterRow(
+                children = state.children,
+                selectedChildId = childFilter,
+                onSelectChild = onSelectChild,
+                selectedStatus = statusFilter,
+                onSelectStatus = onSelectStatus
+            )
+            Spacer(Modifier.height(8.dp))
+            val filteredTasks = state.tasks.filter { task ->
+                (statusFilter == null || task.status == statusFilter) && (childFilter == null || task.childId == childFilter)
+            }
+            if (filteredTasks.isEmpty()) {
+                Text("Tidak ada tugas yang cocok dengan filter.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    contentPadding = PaddingValues(bottom = 72.dp) // FAB (di bawah) tidak menutupi baris terakhir
+                ) {
+                    items(filteredTasks, key = { it.id }) { task ->
+                        TaskSummaryCard(
+                            task = task,
+                            childName = state.children.find { it.id == task.childId }?.name,
+                            onClick = { onOpenDetail(task) }
+                        )
+                    }
                 }
+            }
+        }
+
+        // Sebelumnya cuma ada di Dashboard - dipindah/disalin ke sini juga supaya orang tua bisa
+        // langsung buat tugas baru dari mana pun sedang melihat daftar tugas.
+        if (state.children.isNotEmpty()) {
+            FloatingActionButton(
+                onClick = onCreateTask,
+                modifier = Modifier.align(Alignment.BottomEnd).padding(20.dp)
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "Buat Tugas")
             }
         }
     }
@@ -957,7 +1007,7 @@ private fun WaitingTaskCard(task: TaskDto, childName: String?, token: String?, l
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
             Text(task.title, fontWeight = FontWeight.Bold)
             if (childName != null) Text("Anak: $childName", style = MaterialTheme.typography.bodySmall)
-            Text("Hadiah: ${task.rewardMinutes} menit akses", color = MaterialTheme.colorScheme.primary)
+            Text("Hadiah: ${task.rewardMinutes} menit akses", color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Bold)
             if (!task.evidence.isNullOrBlank()) {
                 Spacer(Modifier.height(6.dp))
                 Text("Bukti: ${task.evidence}", style = MaterialTheme.typography.bodyMedium)
@@ -1163,7 +1213,7 @@ private fun TaskDetailDialog(task: TaskDto, childName: String?, token: String?, 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 StatusChip(task.status)
                 if (childName != null) Text("Anak: $childName", style = MaterialTheme.typography.bodySmall)
-                Text("Hadiah: ${task.rewardMinutes} menit akses", color = MaterialTheme.colorScheme.primary)
+                Text("Hadiah: ${task.rewardMinutes} menit akses", color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Bold)
                 if (task.description.isNotBlank()) {
                     Text(task.description, style = MaterialTheme.typography.bodyMedium)
                 }
