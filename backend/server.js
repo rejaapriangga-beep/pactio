@@ -240,7 +240,41 @@ function taskForUser(task, user) {
 const JPEG_MAGIC = Buffer.from([0xff, 0xd8, 0xff]);
 const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const PDF_MAGIC = Buffer.from("%PDF");
-const EVIDENCE_MIME_EXT = { "image/jpeg": "jpg", "image/png": "png", "application/pdf": "pdf" };
+// .docx/.xlsx/.pptx modern (OOXML) sebenarnya berkas ZIP - semuanya berbagi magic bytes ZIP
+// yang sama, jadi ini cuma memastikan isinya benar-benar sebuah ZIP, bukan memastikan ZIP itu
+// spesifik docx vs xlsx vs pptx (butuh membuka isi ZIP untuk itu, tidak dilakukan di sini -
+// tetap jauh lebih baik daripada percaya begitu saja field mime dari klien).
+const OOXML_ZIP_MAGIC = Buffer.from([0x50, 0x4b, 0x03, 0x04]);
+// .doc/.xls/.ppt lama (format OLE Compound File) juga berbagi satu magic bytes yang sama.
+const OLE_MAGIC = Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]);
+const OOXML_MIMES = new Set([
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // .xlsx
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation" // .pptx
+]);
+const OLE_MIMES = new Set(["application/msword", "application/vnd.ms-excel", "application/vnd.ms-powerpoint"]);
+const EVIDENCE_MIME_EXT = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "application/pdf": "pdf",
+  "application/msword": "doc",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+  "application/vnd.ms-excel": "xls",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+  "application/vnd.ms-powerpoint": "ppt",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation": "pptx",
+  "text/plain": "txt"
+};
+
+/**
+ * Heuristik ringan untuk .txt: teks biasa (UTF-8/ASCII) nyaris tidak pernah mengandung byte
+ * NUL - dipakai menolak berkas biner yang mengaku .txt, tanpa perlu parser encoding penuh
+ * (yang butuh dependency eksternal).
+ */
+function looksLikePlainText(buffer) {
+  const sample = buffer.subarray(0, Math.min(buffer.length, 2000));
+  return !sample.includes(0);
+}
 
 // Menerima berkas bukti sebagai data URI base64 (bukan multipart) - paling sederhana dengan
 // http bawaan Node tanpa dependency parsing multipart eksternal. Isi file diverifikasi lewat
@@ -251,12 +285,16 @@ function validateEvidenceFile(dataUri) {
   if (!match) throw new Error("Format berkas bukti tidak valid.");
   const [, mime, base64] = match;
   const ext = EVIDENCE_MIME_EXT[mime];
-  if (!ext) throw new Error(`Jenis berkas "${mime}" tidak didukung (harus JPEG, PNG, atau PDF).`);
+  if (!ext) throw new Error(`Jenis berkas "${mime}" tidak didukung (harus JPEG, PNG, PDF, Word, Excel, PowerPoint, atau TXT).`);
   const buffer = Buffer.from(base64, "base64");
   if (buffer.length === 0 || buffer.length > MAX_EVIDENCE_FILE_BYTES) throw new Error("Ukuran berkas tidak valid (maksimal 5MB per berkas).");
   const magicOk = mime === "image/jpeg" ? buffer.subarray(0, 3).equals(JPEG_MAGIC)
     : mime === "image/png" ? buffer.subarray(0, 8).equals(PNG_MAGIC)
-    : buffer.subarray(0, 4).equals(PDF_MAGIC);
+    : mime === "application/pdf" ? buffer.subarray(0, 4).equals(PDF_MAGIC)
+    : OOXML_MIMES.has(mime) ? buffer.subarray(0, 4).equals(OOXML_ZIP_MAGIC)
+    : OLE_MIMES.has(mime) ? buffer.subarray(0, 8).equals(OLE_MAGIC)
+    : mime === "text/plain" ? looksLikePlainText(buffer)
+    : false;
   if (!magicOk) throw new Error("Isi berkas tidak cocok dengan jenis yang dinyatakan.");
   return { buffer, mime, ext };
 }
@@ -690,7 +728,12 @@ async function route(req, res) {
       let file;
       try { file = validateEvidenceFile(body.photo); }
       catch (error) { return send(res, 400, { error: error.message }); }
-      if (file.mime === "application/pdf") return send(res, 400, { error: "Chat hanya menerima foto (JPEG/PNG), bukan dokumen." });
+      // validateEvidenceFile() sekarang menerima banyak jenis dokumen (dipakai bersama endpoint
+      // bukti tugas) - cek EKSPLISIT hanya JPEG/PNG di sini, BUKAN cuma menolak PDF, supaya
+      // dokumen baru (Word/Excel/PowerPoint/TXT) tidak ikut lolos ke chat tanpa sengaja.
+      if (file.mime !== "image/jpeg" && file.mime !== "image/png") {
+        return send(res, 400, { error: "Chat hanya menerima foto (JPEG/PNG), bukan dokumen." });
+      }
       fs.writeFileSync(chatPhotoPath(message.id, file.ext), file.buffer);
       message.photoMime = file.mime;
       message.photoAvailable = true;

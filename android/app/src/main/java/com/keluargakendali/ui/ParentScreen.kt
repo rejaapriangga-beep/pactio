@@ -74,6 +74,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
+import com.keluargakendali.data.EVIDENCE_MIME_EXT
 import com.keluargakendali.data.EvidenceFileDto
 import com.keluargakendali.data.FAMILY_CHAT_THREAD_ID
 import com.keluargakendali.data.PactioApi
@@ -472,7 +473,7 @@ private fun WaitingTaskCard(task: TaskDto, childName: String?, token: String?, l
 }
 
 /**
- * Galeri kecil semua berkas bukti satu tugas (bisa campuran foto & PDF) - dipakai baik di
+ * Galeri kecil semua berkas bukti satu tugas (bisa campuran foto & dokumen) - dipakai baik di
  * kartu "Menunggu persetujuan" maupun di TaskDetailDialog. Tiap berkas diambil terpisah lewat
  * GET /tasks/:id/evidence/:fileId (lihat PactioApi.getEvidenceFileBytes).
  */
@@ -490,9 +491,10 @@ private fun EvidenceGallery(token: String, task: TaskDto, thumbnailSize: Dp = 72
 
 /**
  * Satu berkas bukti: foto ditampilkan sebagai pratinjau langsung (bisa diklik untuk pratinjau
- * penuh layar); dokumen PDF ditampilkan sebagai ikon (diklik -> diunduh ke cache lalu dibuka
- * lewat aplikasi pembaca PDF eksternal yang sudah terpasang di HP, via FileProvider - lihat
- * openPdfExternally & AndroidManifest.xml).
+ * penuh layar); dokumen (PDF, Word, Excel, PowerPoint, TXT) ditampilkan sebagai ikon (diklik ->
+ * diunduh ke cache lalu dibuka lewat aplikasi eksternal yang sesuai jenisnya (mis. pembaca PDF,
+ * Word) yang sudah terpasang di HP, via FileProvider - lihat openDocumentExternally &
+ * AndroidManifest.xml).
  */
 @Composable
 private fun EvidenceFileThumbnail(token: String, taskId: String, file: EvidenceFileDto, size: Dp) {
@@ -509,10 +511,10 @@ private fun EvidenceFileThumbnail(token: String, taskId: String, file: EvidenceF
         }
     }
 
-    val isPdf = file.mime == "application/pdf"
+    val isImage = file.mime == "image/jpeg" || file.mime == "image/png"
     val currentBytes = bytes
     val bitmap = remember(file.id, currentBytes) {
-        if (currentBytes != null && !isPdf) BitmapFactory.decodeByteArray(currentBytes, 0, currentBytes.size) else null
+        if (currentBytes != null && isImage) BitmapFactory.decodeByteArray(currentBytes, 0, currentBytes.size) else null
     }
 
     Box(
@@ -521,7 +523,7 @@ private fun EvidenceFileThumbnail(token: String, taskId: String, file: EvidenceF
             .clip(RoundedCornerShape(12.dp))
             .background(MaterialTheme.colorScheme.secondaryContainer)
             .clickable(enabled = currentBytes != null) {
-                if (isPdf) openPdfExternally(context, currentBytes!!, file.id) else showPreview = true
+                if (isImage) showPreview = true else openDocumentExternally(context, currentBytes!!, file.id, file.mime)
             },
         contentAlignment = Alignment.Center
     ) {
@@ -532,7 +534,7 @@ private fun EvidenceFileThumbnail(token: String, taskId: String, file: EvidenceF
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
             )
-            currentBytes != null && isPdf -> Icon(Icons.Default.Description, contentDescription = "Dokumen PDF bukti tugas")
+            currentBytes != null && !isImage -> Icon(Icons.Default.Description, contentDescription = "Dokumen bukti tugas")
             failed -> Icon(Icons.Default.ErrorOutline, contentDescription = "Gagal memuat", tint = MaterialTheme.colorScheme.error)
             else -> CircularProgressIndicator(modifier = Modifier.size(20.dp))
         }
@@ -561,25 +563,27 @@ private fun ImagePreviewDialog(bitmap: Bitmap, onDismiss: () -> Unit) {
 }
 
 /**
- * Menyimpan berkas PDF ke cache/evidence/ lalu membukanya lewat aplikasi pembaca PDF eksternal
- * yang sudah terpasang di HP - via content:// resmi (FileProvider), bukan file:// langsung
- * (diblokir sejak Android 7+). Kalau tidak ada aplikasi pembaca PDF, tampilkan pesan singkat
- * alih-alih membiarkan aplikasi crash.
+ * Menyimpan berkas dokumen (PDF, Word, Excel, PowerPoint, TXT) ke cache/evidence/ lalu
+ * membukanya lewat aplikasi eksternal yang sesuai jenisnya (OS yang memilih berdasar mime -
+ * pembaca PDF untuk PDF, Word/kompatibel untuk .docx, dst) yang sudah terpasang di HP - via
+ * content:// resmi (FileProvider), bukan file:// langsung (diblokir sejak Android 7+). Kalau
+ * tidak ada aplikasi yang cocok, tampilkan pesan singkat alih-alih membiarkan aplikasi crash.
  */
-private fun openPdfExternally(context: Context, bytes: ByteArray, fileId: String) {
+private fun openDocumentExternally(context: Context, bytes: ByteArray, fileId: String, mime: String) {
     try {
+        val ext = EVIDENCE_MIME_EXT[mime] ?: "bin"
         val cacheDir = File(context.cacheDir, "evidence").apply { mkdirs() }
-        val file = File(cacheDir, "$fileId.pdf")
+        val file = File(cacheDir, "$fileId.$ext")
         file.writeBytes(bytes)
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
         val intent = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(uri, "application/pdf")
+            setDataAndType(uri, mime)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         context.startActivity(intent)
     } catch (error: Exception) {
-        Toast.makeText(context, "Tidak ada aplikasi pembaca PDF di HP ini.", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, "Tidak ada aplikasi yang bisa membuka jenis berkas ini di HP ini.", Toast.LENGTH_SHORT).show()
     }
 }
 

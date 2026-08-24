@@ -24,7 +24,26 @@ data class FamilyDto(
 /** Satu berkas bukti (foto atau dokumen) - byte-nya diambil terpisah lewat GET /tasks/:id/evidence/:fileId. */
 data class EvidenceFileDto(
     val id: String,
-    val mime: String // "image/jpeg" | "image/png" | "application/pdf"
+    val mime: String // lihat EVIDENCE_MIME_EXT untuk daftar lengkap jenis yang didukung
+)
+
+/**
+ * Jenis berkas bukti tugas yang didukung, dan ekstensi berkasnya - HARUS SAMA PERSIS dengan
+ * EVIDENCE_MIME_EXT di server.js. Dipakai untuk: filter mime pemilih dokumen (SubmitEvidenceDialog
+ * di ChildScreen), validasi jenis di klien sebelum kirim, dan nama berkas cache saat membuka
+ * dokumen lewat aplikasi eksternal (openDocumentExternally di ParentScreen).
+ */
+val EVIDENCE_MIME_EXT: Map<String, String> = mapOf(
+    "image/jpeg" to "jpg",
+    "image/png" to "png",
+    "application/pdf" to "pdf",
+    "application/msword" to "doc",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document" to "docx",
+    "application/vnd.ms-excel" to "xls",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" to "xlsx",
+    "application/vnd.ms-powerpoint" to "ppt",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation" to "pptx",
+    "text/plain" to "txt"
 )
 
 data class TaskDto(

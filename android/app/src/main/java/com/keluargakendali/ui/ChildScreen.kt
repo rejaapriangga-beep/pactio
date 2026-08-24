@@ -65,6 +65,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.keluargakendali.data.EVIDENCE_MIME_EXT
 import com.keluargakendali.data.FAMILY_CHAT_THREAD_ID
 import com.keluargakendali.data.TaskDto
 import com.keluargakendali.service.AppForegroundState
@@ -474,9 +475,8 @@ private fun queryDisplayName(context: Context, uri: Uri): String? {
  */
 private fun Uri.readAsAttachment(context: Context, onError: (String) -> Unit): PendingAttachment? {
     val mime = context.contentResolver.getType(this)
-    val supported = mime == "image/jpeg" || mime == "image/png" || mime == "application/pdf"
-    if (!supported) {
-        onError("Jenis berkas tidak didukung (harus JPEG, PNG, atau PDF).")
+    if (mime == null || !EVIDENCE_MIME_EXT.containsKey(mime)) {
+        onError("Jenis berkas tidak didukung (harus JPEG, PNG, PDF, Word, Excel, PowerPoint, atau TXT).")
         return null
     }
     val bytes = context.contentResolver.openInputStream(this)?.use { it.readBytes() }
@@ -489,7 +489,8 @@ private fun Uri.readAsAttachment(context: Context, onError: (String) -> Unit): P
         return null
     }
     val base64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
-    val bitmap = if (mime != "application/pdf") BitmapFactory.decodeByteArray(bytes, 0, bytes.size) else null
+    val isImage = mime == "image/jpeg" || mime == "image/png"
+    val bitmap = if (isImage) BitmapFactory.decodeByteArray(bytes, 0, bytes.size) else null
     val label = queryDisplayName(context, this) ?: "Berkas"
     return PendingAttachment(dataUri = "data:$mime;base64,$base64", previewBitmap = bitmap, label = label)
 }
@@ -600,7 +601,7 @@ private fun SubmitEvidenceDialog(
                     OutlinedButton(
                         onClick = {
                             AppForegroundState.suppressLockFor(PICKER_LOCK_SUPPRESSION_MS)
-                            pickDocuments.launch(arrayOf("image/jpeg", "image/png", "application/pdf"))
+                            pickDocuments.launch(EVIDENCE_MIME_EXT.keys.toTypedArray())
                         },
                         enabled = !atLimit,
                         modifier = Modifier.weight(1f)
