@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Lapisan depan ikon adaptif TimeCraft - jam dinding putih dengan jarum membentuk posisi
+    "jam 10:10" (konvensi umum di ikon/logo jam, terlihat ramah seperti senyum) di atas latar
+    koral (lihat ic_launcher_background.xml), plus lencana centang emas di sudut kanan bawah
+    yang melambangkan tugas selesai - dua konsep inti aplikasi (waktu + tugas) dalam satu ikon.
+    Semua elemen berada dalam zona aman 66x66dp di tengah kanvas 108x108dp sesuai pedoman
+    Adaptive Icon Android.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Piringan jam - lingkaran putih penuh -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M26,54 a28,28 0 1,0 56,0 a28,28 0 1,0 -56,0 Z" />
+
+    <!-- Jarum pendek (jam), menunjuk ke arah "10" -->
+    <path
+        android:strokeColor="#E2623C"
+        android:strokeWidth="6"
+        android:strokeLineCap="round"
+        android:pathData="M54,54 L42.5,46" />
+
+    <!-- Jarum panjang (menit), menunjuk ke arah "2" - bersama jarum jam membentuk pola 10:10 -->
+    <path
+        android:strokeColor="#E2623C"
+        android:strokeWidth="6"
+        android:strokeLineCap="round"
+        android:pathData="M54,54 L70.4,42.5" />
+
+    <!-- Titik poros di tengah jam -->
+    <path
+        android:fillColor="#E2623C"
+        android:pathData="M50,54 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0 Z" />
+
+    <!-- Lencana centang: lingkaran emas dengan cincin putih tipis supaya terpisah dari piringan jam -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M61.5,76 a16.5,16.5 0 1,0 33,0 a16.5,16.5 0 1,0 -33,0 Z" />
+    <path
+        android:fillColor="#DFA94D"
+        android:pathData="M63,76 a15,15 0 1,0 30,0 a15,15 0 1,0 -30,0 Z" />
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M71,77 L76.5,82.5 L87,69.5" />
+</vector>

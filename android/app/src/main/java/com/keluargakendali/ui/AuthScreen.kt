@@ -33,7 +33,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -41,15 +40,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.credentials.exceptions.GetCredentialCancellationException
-import androidx.credentials.exceptions.NoCredentialException
-import com.keluargakendali.data.GoogleAuthHelper
-import kotlinx.coroutines.launch
 
 /** Sub-langkah alur masuk orang tua — hanya muncul lewat link kecil di layar landing anak. */
 private enum class ParentStep { NONE, MENU, LOGIN, REGISTER }
@@ -61,31 +55,9 @@ fun AuthScreen(
     onRegisterParent: (familyName: String, name: String, email: String, password: String) -> Unit,
     onLoginParent: (email: String, password: String) -> Unit,
     onLoginChild: (familyCode: String, pin: String) -> Unit,
-    onLoginGoogle: (idToken: String) -> Unit,
-    onGoogleError: (String) -> Unit,
     onDismissMessage: () -> Unit
 ) {
     var parentStep by rememberSaveable { mutableStateOf(ParentStep.NONE) }
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-
-    // Memanggil Credential Manager (dialog akun bawaan sistem), lalu meneruskan token ID
-    // mentahnya ke backend untuk diverifikasi — Android sendiri tidak pernah memutuskan
-    // login berhasil atau tidak.
-    fun launchGoogleSignIn() {
-        scope.launch {
-            try {
-                val idToken = GoogleAuthHelper.requestIdToken(context)
-                onLoginGoogle(idToken)
-            } catch (error: GetCredentialCancellationException) {
-                // Pengguna membatalkan sendiri lewat dialog pemilih akun — bukan error.
-            } catch (error: NoCredentialException) {
-                onGoogleError("Tidak ada akun Google di HP ini. Tambahkan akun Google lewat Pengaturan terlebih dahulu.")
-            } catch (error: Exception) {
-                onGoogleError(error.message ?: "Gagal masuk dengan Google.")
-            }
-        }
-    }
 
     Box(Modifier.fillMaxSize()) {
         ChildLandingScreen(
@@ -107,7 +79,7 @@ fun AuthScreen(
                         onSelectRegister = { parentStep = ParentStep.REGISTER }
                     )
                     ParentStep.LOGIN -> ParentSheetForm(state = state, onDismissMessage = onDismissMessage) {
-                        LoginParentForm(loading = state.loading, onSubmit = onLoginParent, onGoogleClick = ::launchGoogleSignIn)
+                        LoginParentForm(loading = state.loading, onSubmit = onLoginParent)
                     }
                     ParentStep.REGISTER -> ParentSheetForm(state = state, onDismissMessage = onDismissMessage) {
                         RegisterParentForm(loading = state.loading, onSubmit = onRegisterParent)
@@ -299,7 +271,7 @@ private fun RegisterParentForm(loading: Boolean, onSubmit: (String, String, Stri
 }
 
 @Composable
-private fun LoginParentForm(loading: Boolean, onSubmit: (String, String) -> Unit, onGoogleClick: () -> Unit) {
+private fun LoginParentForm(loading: Boolean, onSubmit: (String, String) -> Unit) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
 
@@ -318,22 +290,5 @@ private fun LoginParentForm(loading: Boolean, onSubmit: (String, String) -> Unit
             shape = RoundedCornerShape(14.dp),
             modifier = Modifier.fillMaxWidth().height(52.dp)
         ) { Text("Masuk", style = MaterialTheme.typography.labelLarge) }
-
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            HorizontalDivider(Modifier.weight(1f))
-            Text("atau", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            HorizontalDivider(Modifier.weight(1f))
-        }
-
-        OutlinedButton(
-            onClick = onGoogleClick,
-            enabled = !loading,
-            shape = RoundedCornerShape(14.dp),
-            modifier = Modifier.fillMaxWidth().height(52.dp)
-        ) {
-            Icon(Icons.Default.Login, contentDescription = null, modifier = Modifier.size(20.dp))
-            Spacer(Modifier.width(8.dp))
-            Text("Lanjut dengan Google", style = MaterialTheme.typography.labelLarge)
-        }
     }
 }

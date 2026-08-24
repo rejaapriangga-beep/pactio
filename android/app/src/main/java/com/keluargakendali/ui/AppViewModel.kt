@@ -85,17 +85,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         onAuthSuccess(result.token, result.user)
     }
 
-    /** Satu aksi untuk login MAUPUN daftar otomatis — backend yang memutuskan mana yang cocok. */
-    fun loginWithGoogle(idToken: String) = launchGuarded {
-        val result = PactioApi.loginWithGoogle(idToken)
-        onAuthSuccess(result.token, result.user)
-    }
-
-    /** Dipakai saat pengambilan akun Google gagal di lapisan UI (Credential Manager), sebelum sempat memanggil backend. */
-    fun reportError(message: String) {
-        _state.update { it.copy(errorMessage = message) }
-    }
-
     fun logout() {
         tokenStore.clear()
         _state.value = UiState()

@@ -68,10 +68,4 @@ dependencies {
     // juga tanpa dependency eksternal.
     implementation("androidx.security:security-crypto:1.1.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.1")
-
-    // Login Google — Credential Manager (API resmi AndroidX, pengganti GoogleSignInClient
-    // yang sudah deprecated). Menampilkan pemilih akun bawaan sistem, bukan alur custom.
-    implementation("androidx.credentials:credentials:1.3.0")
-    implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
-    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
 }

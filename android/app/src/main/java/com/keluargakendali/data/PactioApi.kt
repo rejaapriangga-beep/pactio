@@ -47,18 +47,6 @@ object PactioApi {
         return AuthResult(token = json.getString("token"), user = json.getJSONObject("user").toUserDto())
     }
 
-    /** familyName hanya dipakai backend kalau ini akun Google yang benar-benar baru. */
-    suspend fun loginWithGoogle(idToken: String, familyName: String? = null): AuthResult {
-        val body = JSONObject().put("idToken", idToken)
-        if (!familyName.isNullOrBlank()) body.put("familyName", familyName)
-        val json = request("POST", "/auth/google-parent", token = null, body = body)
-        return AuthResult(
-            token = json.getString("token"),
-            user = json.getJSONObject("user").toUserDto(),
-            family = json.optJSONObject("family")?.toFamilyDto()
-        )
-    }
-
     suspend fun loginChild(familyCode: String, pin: String): AuthResult {
         val body = JSONObject().put("familyCode", familyCode).put("pin", pin)
         val json = request("POST", "/auth/login-child", token = null, body = body)
