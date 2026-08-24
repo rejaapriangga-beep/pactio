@@ -120,6 +120,7 @@ private fun PactioApp() {
                     state.currentUser?.role == "parent" -> ParentScreen(
                         state = state,
                         onAddChild = viewModel::addChild,
+                        onDeleteChild = viewModel::deleteChild,
                         onCreateTask = viewModel::createTask,
                         onDecide = viewModel::decideTask,
                         onSetLock = { childId, enabled -> viewModel.setChildLock(childId, enabled) },

@@ -74,6 +74,11 @@ object PactioApi {
         )
     }
 
+    /** Dipanggil dari Pengaturan orang tua - lihat catatan di server.js soal apa saja yang ikut dibersihkan. */
+    suspend fun deleteChild(token: String, childId: String) {
+        request("DELETE", "/family/children/$childId", token = token, body = null)
+    }
+
     suspend fun getFamily(token: String): FamilyResult {
         val json = request("GET", "/family", token = token, body = null)
         val childrenArray = json.getJSONArray("children")

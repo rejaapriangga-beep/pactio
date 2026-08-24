@@ -121,6 +121,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _state.update { it.copy(infoMessage = "Profil anak berhasil ditambahkan.") }
     }
 
+    /** Dipanggil dari Pengaturan - tugas & foto bukti anak ini ikut terhapus di server. */
+    fun deleteChild(childId: String) = requireToken { token ->
+        PactioApi.deleteChild(token, childId)
+        loadFamily(token)
+        loadTasks(token)
+        _state.update { it.copy(infoMessage = "Profil anak dihapus.") }
+    }
+
     fun createTask(childId: String, title: String, description: String, rewardMinutes: Int) = requireToken { token ->
         PactioApi.createTask(token, childId, title, description, rewardMinutes)
         loadTasks(token)

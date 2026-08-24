@@ -333,6 +333,33 @@ async function route(req, res) {
     return send(res, 201, { child: publicUser(child), familyCode: familyFor(parent).code });
   }
 
+  // Hapus profil anak dari Pengaturan orang tua - dibersihkan menyeluruh (bukan cuma
+  // ditandai nonaktif): tugas & foto bukti miliknya ikut terhapus supaya tidak ada data
+  // yatim yang menunjuk ke user yang sudah tidak ada, dan semua sesi login anak ini
+  // langsung dicabut (kalau HP-nya masih tersimpan token lama, langsung ditolak begitu
+  // dipakai lagi).
+  const childDeleteMatch = pathname.match(/^\/family\/children\/([^/]+)$/);
+  if (req.method === "DELETE" && childDeleteMatch) {
+    const parent = auth(req, res, ["parent"]); if (!parent) return;
+    const child = db.users.find((item) => item.id === childDeleteMatch[1] && item.familyId === parent.familyId && item.role === "child");
+    if (!child) return send(res, 404, { error: "Profil anak tidak ditemukan." });
+
+    for (const task of db.tasks.filter((item) => item.childId === child.id)) {
+      for (const ext of ["jpg", "png"]) {
+        const filePath = photoPath(task, ext);
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      }
+    }
+    db.tasks = db.tasks.filter((item) => item.childId !== child.id);
+    db.users = db.users.filter((item) => item.id !== child.id);
+    for (const [token, record] of sessions) {
+      if (record.userId === child.id) sessions.delete(token);
+    }
+    db.sessions = db.sessions.filter((record) => record.userId !== child.id);
+    save();
+    return send(res, 200, { ok: true });
+  }
+
   const lockMatch = pathname.match(/^\/children\/([^/]+)\/lock$/);
   if (req.method === "POST" && lockMatch) {
     const parent = auth(req, res, ["parent"]); if (!parent) return;

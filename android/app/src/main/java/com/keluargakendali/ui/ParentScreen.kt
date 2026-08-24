@@ -18,10 +18,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -30,7 +31,9 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
@@ -60,12 +63,13 @@ import com.keluargakendali.data.UserDto
 fun ParentScreen(
     state: UiState,
     onAddChild: (name: String, pin: String) -> Unit,
+    onDeleteChild: (childId: String) -> Unit,
     onCreateTask: (childId: String, title: String, description: String, rewardMinutes: Int) -> Unit,
     onDecide: (taskId: String, approved: Boolean, note: String) -> Unit,
     onSetLock: (childId: String, enabled: Boolean) -> Unit,
     onDismissMessage: () -> Unit
 ) {
-    var showAddChild by remember { mutableStateOf(false) }
+    var showSettings by remember { mutableStateOf(false) }
     var showCreateTask by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize().padding(16.dp)) {
@@ -74,57 +78,53 @@ fun ParentScreen(
             Spacer(Modifier.height(12.dp))
         }
 
+        // Satu kartu ringkas: identitas keluarga, kunci per anak (Kontrol Perangkat -
+        // sengaja digabung di sini, bukan seksi terpisah, supaya tidak memenuhi layar),
+        // dan aksi utama. Tambah/hapus profil anak dipindah ke Pengaturan (ikon gerigi) -
+        // jarang dipakai, tidak perlu selalu terlihat di layar utama.
         Card(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             shape = RoundedCornerShape(22.dp)
         ) {
-            Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text(state.family?.name ?: "Keluarga", fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.titleMedium)
-                    if (state.family?.code != null) {
-                        Text(
-                            state.family.code,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(999.dp))
-                                .background(MaterialTheme.colorScheme.primaryContainer)
-                                .padding(horizontal = 12.dp, vertical = 6.dp)
-                        )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (state.family?.code != null) {
+                            Text(
+                                state.family.code,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(999.dp))
+                                    .background(MaterialTheme.colorScheme.primaryContainer)
+                                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                            )
+                        }
+                        IconButton(onClick = { showSettings = true }) {
+                            Icon(Icons.Default.Settings, contentDescription = "Pengaturan")
+                        }
                     }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    state.children.forEach { child ->
-                        AssistChip(onClick = {}, label = { Text(child.name) }, leadingIcon = { Icon(Icons.Default.Group, contentDescription = null) })
-                    }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedButton(onClick = { showAddChild = true }, shape = RoundedCornerShape(14.dp), modifier = Modifier.weight(1f)) { Text("+ Tambah Anak") }
-                    Button(onClick = { showCreateTask = true }, enabled = state.children.isNotEmpty(), shape = RoundedCornerShape(14.dp), modifier = Modifier.weight(1f)) { Text("Buat Tugas") }
-                }
-            }
-        }
 
-        if (state.children.isNotEmpty()) {
-            Spacer(Modifier.height(16.dp))
-            Text("Kontrol Perangkat", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(8.dp))
-            Card {
-                Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-                    state.children.forEachIndexed { index, child ->
-                        if (index > 0) Spacer(Modifier.height(4.dp))
+                if (state.children.isEmpty()) {
+                    Text(
+                        "Belum ada profil anak. Tambah lewat Pengaturan.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    state.children.forEach { child ->
                         Row(
-                            Modifier.fillMaxWidth().padding(vertical = 10.dp),
+                            Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column {
-                                Text(child.name, fontWeight = FontWeight.Bold)
-                                Text(
-                                    if (child.lockModeEnabled) "Aplikasi lain terkunci" else "Tidak dikunci",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = if (child.lockModeEnabled) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                Text(child.name, fontWeight = FontWeight.SemiBold)
+                                if (child.lockModeEnabled) {
+                                    Text("Terkunci", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                                }
                             }
                             Switch(
                                 checked = child.lockModeEnabled,
@@ -134,6 +134,13 @@ fun ParentScreen(
                         }
                     }
                 }
+
+                Button(
+                    onClick = { showCreateTask = true },
+                    enabled = state.children.isNotEmpty(),
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Buat Tugas") }
             }
         }
 
@@ -167,11 +174,13 @@ fun ParentScreen(
         }
     }
 
-    if (showAddChild) {
-        AddChildDialog(
+    if (showSettings) {
+        ParentSettingsDialog(
+            children = state.children,
             loading = state.loading,
-            onDismiss = { showAddChild = false },
-            onSubmit = { name, pin -> onAddChild(name, pin); showAddChild = false }
+            onAddChild = onAddChild,
+            onDeleteChild = onDeleteChild,
+            onDismiss = { showSettings = false }
         )
     }
     if (showCreateTask) {
@@ -291,6 +300,89 @@ private fun TaskSummaryCard(task: TaskDto, childName: String?) {
             if (childName != null) Text("Anak: $childName", style = MaterialTheme.typography.bodySmall)
             Text("Hadiah: ${task.rewardMinutes} menit akses", color = MaterialTheme.colorScheme.primary)
         }
+    }
+}
+
+/**
+ * Pengaturan orang tua: kelola profil anak (tambah/hapus) - dipisah dari layar utama
+ * (dibuka lewat ikon gerigi) supaya layar utama tidak dipenuhi aksi yang jarang dipakai.
+ */
+@Composable
+private fun ParentSettingsDialog(
+    children: List<UserDto>,
+    loading: Boolean,
+    onAddChild: (name: String, pin: String) -> Unit,
+    onDeleteChild: (childId: String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var showAddChild by remember { mutableStateOf(false) }
+    var childPendingDelete by remember { mutableStateOf<UserDto?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Pengaturan") },
+        text = {
+            Column {
+                Text("Profil Anak", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                if (children.isEmpty()) {
+                    Text(
+                        "Belum ada profil anak.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    children.forEach { child ->
+                        Row(
+                            Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(child.name)
+                            IconButton(onClick = { childPendingDelete = child }) {
+                                Icon(Icons.Default.Delete, contentDescription = "Hapus ${child.name}", tint = MaterialTheme.colorScheme.error)
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                HorizontalDivider()
+                Spacer(Modifier.height(12.dp))
+                OutlinedButton(onClick = { showAddChild = true }, modifier = Modifier.fillMaxWidth()) {
+                    Text("+ Tambah Anak")
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Tutup") } }
+    )
+
+    if (showAddChild) {
+        AddChildDialog(
+            loading = loading,
+            onDismiss = { showAddChild = false },
+            onSubmit = { name, pin -> onAddChild(name, pin); showAddChild = false }
+        )
+    }
+
+    val deleteTarget = childPendingDelete
+    if (deleteTarget != null) {
+        AlertDialog(
+            onDismissRequest = { childPendingDelete = null },
+            title = { Text("Hapus profil ${deleteTarget.name}?") },
+            text = {
+                Text(
+                    "Semua tugas dan riwayatnya akan ikut terhapus, dan perangkat anak ini " +
+                        "akan otomatis keluar. Tindakan ini tidak bisa dibatalkan."
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = { onDeleteChild(deleteTarget.id); childPendingDelete = null },
+                    enabled = !loading,
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) { Text("Hapus") }
+            },
+            dismissButton = { TextButton(onClick = { childPendingDelete = null }) { Text("Batal") } }
+        )
     }
 }
 
