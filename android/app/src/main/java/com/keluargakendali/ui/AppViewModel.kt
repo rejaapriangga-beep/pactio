@@ -29,7 +29,12 @@ data class UiState(
     val approvedTaskCount: Int = 0,
     // Timestamp epoch ms sampai kapan Mode Kunci nonaktif (0 = tidak sedang aktif) - lihat
     // ChildScreen (tombol "Gunakan Waktu") & DeviceLockService.
-    val unlockUntil: Long = 0L
+    val unlockUntil: Long = 0L,
+    // Total pesan chat belum dibaca di semua thread - badge tab Chat. Isi pesan sendiri
+    // TIDAK disimpan di sini (ChatScreen mengurus thread aktifnya sendiri lewat PactioApi
+    // langsung, sama seperti EvidenceFileThumbnail di ParentScreen), cuma angka badge ini
+    // yang perlu tetap "hidup" walau tab Chat sedang tidak aktif.
+    val chatUnreadTotal: Int = 0
 )
 
 class AppViewModel(application: Application) : AndroidViewModel(application) {
@@ -178,7 +183,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         loadFamily(token)
         loadTasks(token)
         loadBalanceIfChild(token)
+        loadChatUnread(token)
         _state.update { it.copy(infoMessage = "Data diperbarui.") }
+    }
+
+    /**
+     * Dipanggil ChatScreen setelah menandai thread terbaca atau mengirim/menerima pesan,
+     * supaya badge tab Chat langsung ter-update tanpa menunggu siklus silentRefresh 8 detik
+     * berikutnya. Diam-diam sama seperti silentRefresh - tidak menyentuh loading/error.
+     */
+    fun refreshChatUnread() {
+        val token = _state.value.token ?: return
+        viewModelScope.launch { runCatching { loadChatUnread(token) } }
     }
 
     /**
@@ -199,6 +215,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 loadFamily(token)
                 loadTasks(token)
                 loadBalanceIfChild(token)
+                loadChatUnread(token)
             }
         }
     }
@@ -224,6 +241,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         loadFamily(token)
         loadTasks(token)
         loadBalanceIfChild(token)
+        loadChatUnread(token)
     }
 
     private suspend fun loadFamily(token: String) {
@@ -242,6 +260,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _state.update {
             it.copy(balanceMinutes = balance.minutes, approvedTaskCount = balance.approvedTaskCount, unlockUntil = balance.unlockUntil)
         }
+    }
+
+    private suspend fun loadChatUnread(token: String) {
+        val summary = PactioApi.getChatUnreadSummary(token)
+        _state.update { it.copy(chatUnreadTotal = summary.total) }
     }
 
     /** Menjalankan aksi yang butuh token; tidak melakukan apa pun kalau belum login. */

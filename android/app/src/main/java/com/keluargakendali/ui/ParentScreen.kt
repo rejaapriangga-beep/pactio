@@ -27,11 +27,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.filled.Checklist
+import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.ErrorOutline
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.FactCheck
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -87,128 +90,58 @@ fun ParentScreen(
     onCreateTask: (childId: String, title: String, description: String, rewardMinutes: Int) -> Unit,
     onDecide: (taskId: String, approved: Boolean, note: String) -> Unit,
     onSetLock: (childId: String, enabled: Boolean) -> Unit,
-    onDismissMessage: () -> Unit
+    onDismissMessage: () -> Unit,
+    onRefreshChatUnread: () -> Unit
 ) {
-    var showSettings by remember { mutableStateOf(false) }
+    var selectedTab by remember { mutableStateOf(0) }
+    var showAddChild by remember { mutableStateOf(false) }
+    var childPendingDelete by remember { mutableStateOf<UserDto?>(null) }
     var showCreateTask by remember { mutableStateOf(false) }
-    var lockSectionExpanded by remember { mutableStateOf(false) }
     var statusFilter by remember { mutableStateOf<String?>(null) }
     var childFilter by remember { mutableStateOf<String?>(null) }
     var detailTask by remember { mutableStateOf<TaskDto?>(null) }
+    var selectedChatChildId by remember { mutableStateOf<String?>(null) }
 
-    Box(Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize().padding(16.dp)) {
-            state.errorMessage?.let {
-                ErrorBanner(it, onDismissMessage)
-                Spacer(Modifier.height(12.dp))
-            }
+    val approvalCount = state.tasks.count { it.status == "submitted" }
+    val tabs = listOf(
+        TabItem("Dashboard", Icons.Default.Dashboard),
+        TabItem("Tugas", Icons.Default.Checklist),
+        TabItem("Approval", Icons.Default.FactCheck, badgeCount = approvalCount),
+        TabItem("Chat", Icons.Default.Chat, badgeCount = state.chatUnreadTotal),
+        TabItem("Kunci", Icons.Default.Lock),
+        TabItem("Atur", Icons.Default.Settings)
+    )
 
-            // Satu kartu ringkas: identitas keluarga, kunci per anak, dan aksi utama.
-            // Tambah/hapus profil anak dipindah ke Pengaturan (ikon gerigi) - jarang dipakai,
-            // tidak perlu selalu terlihat di layar utama.
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(22.dp)
-            ) {
-                Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Text(state.family?.name ?: "Keluarga", fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.titleMedium)
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (state.family?.code != null) {
-                                Text(
-                                    state.family.code,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(999.dp))
-                                        .background(MaterialTheme.colorScheme.primaryContainer)
-                                        .padding(horizontal = 12.dp, vertical = 6.dp)
-                                )
-                            }
-                            IconButton(onClick = { showSettings = true }) {
-                                Icon(Icons.Default.Settings, contentDescription = "Pengaturan")
-                            }
-                        }
-                    }
-
-                    if (state.children.isEmpty()) {
-                        Text(
-                            "Belum ada profil anak. Tambah lewat Pengaturan.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    } else {
-                        LockSection(
-                            children = state.children,
-                            expanded = lockSectionExpanded,
-                            onToggleExpanded = { lockSectionExpanded = !lockSectionExpanded },
-                            loading = state.loading,
-                            onSetLock = onSetLock
-                        )
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(16.dp))
-            Text("Menunggu persetujuan", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(8.dp))
-            val waiting = state.tasks.filter { it.status == "submitted" }
-            if (waiting.isEmpty()) {
-                Text("Belum ada tugas yang dikirim anak.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            } else {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    items(waiting, key = { it.id }) { task ->
-                        WaitingTaskCard(
-                            task = task,
-                            childName = state.children.find { it.id == task.childId }?.name,
-                            token = state.token,
-                            loading = state.loading,
-                            onDecide = onDecide
-                        )
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(16.dp))
-            Text("Semua tugas", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(8.dp))
-            TaskFilterRow(
-                children = state.children,
-                selectedChildId = childFilter,
-                onSelectChild = { childFilter = it },
-                selectedStatus = statusFilter,
-                onSelectStatus = { statusFilter = it }
-            )
-            Spacer(Modifier.height(8.dp))
-            val filteredTasks = state.tasks.filter { task ->
-                (statusFilter == null || task.status == statusFilter) && (childFilter == null || task.childId == childFilter)
-            }
-            if (filteredTasks.isEmpty()) {
-                Text("Tidak ada tugas yang cocok dengan filter.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            } else {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(filteredTasks, key = { it.id }) { task ->
-                        TaskSummaryCard(
-                            task = task,
-                            childName = state.children.find { it.id == task.childId }?.name,
-                            onClick = { detailTask = task }
-                        )
-                    }
-                }
-            }
+    Column(Modifier.fillMaxSize()) {
+        state.errorMessage?.let {
+            Box(Modifier.padding(16.dp)) { ErrorBanner(it, onDismissMessage) }
         }
 
-        // Tombol "Buat Tugas" jadi FAB bulat "+" (bukan tombol lebar penuh) - lebih ringkas,
-        // konsisten dengan pola aksi utama di aplikasi mobile pada umumnya. Disembunyikan
-        // kalau belum ada profil anak (FloatingActionButton M3 tidak punya state disabled) -
-        // parent diarahkan ke Pengaturan dulu lewat pesan di kartu atas.
-        if (state.children.isNotEmpty()) {
-            FloatingActionButton(
-                onClick = { showCreateTask = true },
-                modifier = Modifier.align(Alignment.BottomEnd).padding(20.dp)
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Buat Tugas")
-            }
+        PactioTabRow(items = tabs, selectedIndex = selectedTab, onSelect = { selectedTab = it })
+
+        when (selectedTab) {
+            0 -> ParentDashboardTab(state = state, approvalCount = approvalCount, onCreateTask = { showCreateTask = true })
+            1 -> ParentTaskListTab(
+                state = state,
+                statusFilter = statusFilter,
+                onSelectStatus = { statusFilter = it },
+                childFilter = childFilter,
+                onSelectChild = { childFilter = it },
+                onOpenDetail = { detailTask = it }
+            )
+            2 -> ParentApprovalTab(state = state, onDecide = onDecide)
+            3 -> ParentChatTab(
+                state = state,
+                selectedChildId = selectedChatChildId,
+                onSelectChild = { selectedChatChildId = it },
+                onRefreshUnread = onRefreshChatUnread
+            )
+            4 -> ParentLockTab(children = state.children, loading = state.loading, onSetLock = onSetLock)
+            5 -> ParentSettingsTab(
+                children = state.children,
+                onAddChild = { showAddChild = true },
+                onDeleteChild = { childPendingDelete = it }
+            )
         }
     }
 
@@ -222,15 +155,6 @@ fun ParentScreen(
         )
     }
 
-    if (showSettings) {
-        ParentSettingsDialog(
-            children = state.children,
-            loading = state.loading,
-            onAddChild = onAddChild,
-            onDeleteChild = onDeleteChild,
-            onDismiss = { showSettings = false }
-        )
-    }
     if (showCreateTask) {
         CreateTaskDialog(
             children = state.children,
@@ -241,6 +165,257 @@ fun ParentScreen(
                 showCreateTask = false
             }
         )
+    }
+
+    if (showAddChild) {
+        AddChildDialog(
+            loading = state.loading,
+            onDismiss = { showAddChild = false },
+            onSubmit = { name, pin -> onAddChild(name, pin); showAddChild = false }
+        )
+    }
+
+    val deleteTarget = childPendingDelete
+    if (deleteTarget != null) {
+        AlertDialog(
+            onDismissRequest = { childPendingDelete = null },
+            title = { Text("Hapus profil ${deleteTarget.name}?") },
+            text = {
+                Text(
+                    "Semua tugas, riwayat chat, dan foto bukti miliknya akan ikut terhapus, dan " +
+                        "perangkat anak ini akan otomatis keluar. Tindakan ini tidak bisa dibatalkan."
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = { onDeleteChild(deleteTarget.id); childPendingDelete = null },
+                    enabled = !state.loading,
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) { Text("Hapus") }
+            },
+            dismissButton = { TextButton(onClick = { childPendingDelete = null }) { Text("Batal") } }
+        )
+    }
+}
+
+/** Ringkasan keluarga + aksi utama "Buat Tugas" (FAB bulat "+", gaya dompetdigitalku). */
+@Composable
+private fun ParentDashboardTab(state: UiState, approvalCount: Int, onCreateTask: () -> Unit) {
+    Box(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(22.dp)
+            ) {
+                Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(state.family?.name ?: "Keluarga", fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.titleMedium)
+                    if (state.family?.code != null) {
+                        Text(
+                            state.family.code,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(MaterialTheme.colorScheme.primaryContainer)
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        )
+                    }
+                    if (state.children.isEmpty()) {
+                        Text(
+                            "Belum ada profil anak. Tambah lewat tab Pengaturan.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                DashboardStatCard(modifier = Modifier.weight(1f), label = "Menunggu Approval", value = approvalCount.toString())
+                DashboardStatCard(modifier = Modifier.weight(1f), label = "Anak", value = state.children.size.toString())
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                DashboardStatCard(modifier = Modifier.weight(1f), label = "Terkunci", value = state.children.count { it.lockModeEnabled }.toString())
+                DashboardStatCard(modifier = Modifier.weight(1f), label = "Total Tugas", value = state.tasks.size.toString())
+            }
+        }
+
+        if (state.children.isNotEmpty()) {
+            FloatingActionButton(
+                onClick = onCreateTask,
+                modifier = Modifier.align(Alignment.BottomEnd).padding(20.dp)
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "Buat Tugas")
+            }
+        }
+    }
+}
+
+@Composable
+private fun DashboardStatCard(modifier: Modifier = Modifier, label: String, value: String) {
+    Card(modifier = modifier, shape = RoundedCornerShape(16.dp)) {
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            Text(value, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+/** Daftar semua tugas dengan filter dropdown (anak & status) - baris ringkas, klik untuk detail. */
+@Composable
+private fun ParentTaskListTab(
+    state: UiState,
+    statusFilter: String?,
+    onSelectStatus: (String?) -> Unit,
+    childFilter: String?,
+    onSelectChild: (String?) -> Unit,
+    onOpenDetail: (TaskDto) -> Unit
+) {
+    Column(Modifier.fillMaxSize().padding(16.dp)) {
+        TaskFilterRow(
+            children = state.children,
+            selectedChildId = childFilter,
+            onSelectChild = onSelectChild,
+            selectedStatus = statusFilter,
+            onSelectStatus = onSelectStatus
+        )
+        Spacer(Modifier.height(8.dp))
+        val filteredTasks = state.tasks.filter { task ->
+            (statusFilter == null || task.status == statusFilter) && (childFilter == null || task.childId == childFilter)
+        }
+        if (filteredTasks.isEmpty()) {
+            Text("Tidak ada tugas yang cocok dengan filter.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                items(filteredTasks, key = { it.id }) { task ->
+                    TaskSummaryCard(
+                        task = task,
+                        childName = state.children.find { it.id == task.childId }?.name,
+                        onClick = { onOpenDetail(task) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Tugas yang dikirim anak dan menunggu disetujui/ditolak. */
+@Composable
+private fun ParentApprovalTab(state: UiState, onDecide: (taskId: String, approved: Boolean, note: String) -> Unit) {
+    Column(Modifier.fillMaxSize().padding(16.dp)) {
+        val waiting = state.tasks.filter { it.status == "submitted" }
+        if (waiting.isEmpty()) {
+            Text("Belum ada tugas yang dikirim anak.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(waiting, key = { it.id }) { task ->
+                    WaitingTaskCard(
+                        task = task,
+                        childName = state.children.find { it.id == task.childId }?.name,
+                        token = state.token,
+                        loading = state.loading,
+                        onDecide = onDecide
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Kalau anak lebih dari satu, pilih dulu anak mana yang mau diajak chat lewat dropdown. */
+@Composable
+private fun ParentChatTab(
+    state: UiState,
+    selectedChildId: String?,
+    onSelectChild: (String) -> Unit,
+    onRefreshUnread: () -> Unit
+) {
+    if (state.children.isEmpty()) {
+        Box(Modifier.fillMaxSize().padding(16.dp)) {
+            Text("Belum ada profil anak untuk diajak chat.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        return
+    }
+    val activeChildId = selectedChildId ?: state.children.first().id
+    Column(Modifier.fillMaxSize()) {
+        if (state.children.size > 1) {
+            FilterDropdown(
+                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                label = "Anak",
+                selectedLabel = state.children.find { it.id == activeChildId }?.name ?: state.children.first().name,
+                options = state.children.map { (it.id as String?) to it.name },
+                onSelect = { value -> value?.let(onSelectChild) }
+            )
+        }
+        ChatScreen(state = state, childId = activeChildId, onRefreshUnread = onRefreshUnread)
+    }
+}
+
+/** Kontrol Perangkat - saklar kunci per anak, sekarang tab sendiri jadi bisa ditampilkan penuh (tidak perlu expand/collapse lagi). */
+@Composable
+private fun ParentLockTab(children: List<UserDto>, loading: Boolean, onSetLock: (childId: String, enabled: Boolean) -> Unit) {
+    Column(Modifier.fillMaxSize().padding(16.dp)) {
+        if (children.isEmpty()) {
+            Text("Belum ada profil anak.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            return
+        }
+        val lockedCount = children.count { it.lockModeEnabled }
+        Text(
+            if (lockedCount == 0) "Tidak ada yang dikunci" else "$lockedCount dari ${children.size} anak dikunci",
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = if (lockedCount > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(12.dp))
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(children, key = { it.id }) { child ->
+                Card {
+                    Row(
+                        Modifier.fillMaxWidth().padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(child.name, fontWeight = FontWeight.SemiBold)
+                        Switch(checked = child.lockModeEnabled, onCheckedChange = { onSetLock(child.id, it) }, enabled = !loading)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Pengaturan - kelola profil anak (tambah/hapus). Formulir tambah & konfirmasi hapus tetap popup (transient, jarang dipakai). */
+@Composable
+private fun ParentSettingsTab(children: List<UserDto>, onAddChild: () -> Unit, onDeleteChild: (UserDto) -> Unit) {
+    Column(Modifier.fillMaxSize().padding(16.dp)) {
+        Text("Profil Anak", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(8.dp))
+        if (children.isEmpty()) {
+            Text(
+                "Belum ada profil anak.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            children.forEach { child ->
+                Row(
+                    Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(child.name)
+                    IconButton(onClick = { onDeleteChild(child) }) {
+                        Icon(Icons.Default.Delete, contentDescription = "Hapus ${child.name}", tint = MaterialTheme.colorScheme.error)
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        HorizontalDivider()
+        Spacer(Modifier.height(12.dp))
+        OutlinedButton(onClick = onAddChild, modifier = Modifier.fillMaxWidth()) {
+            Text("+ Tambah Anak")
+        }
     }
 }
 
@@ -476,63 +651,6 @@ private fun TaskDetailDialog(task: TaskDto, childName: String?, token: String?, 
 }
 
 /**
- * Kontrol Perangkat, diringkas jadi satu baris yang bisa di-expand/collapse (tertutup
- * secara default) - cuma menampilkan ringkasan (berapa anak sedang terkunci) sampai orang
- * tua sengaja membukanya, supaya tidak memenuhi layar tiap kali dibuka.
- */
-@Composable
-private fun LockSection(
-    children: List<UserDto>,
-    expanded: Boolean,
-    onToggleExpanded: () -> Unit,
-    loading: Boolean,
-    onSetLock: (childId: String, enabled: Boolean) -> Unit
-) {
-    val lockedCount = children.count { it.lockModeEnabled }
-
-    Column {
-        Row(
-            Modifier.fillMaxWidth().clickable(onClick = onToggleExpanded),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
-                Text("Kontrol Perangkat", fontWeight = FontWeight.SemiBold)
-                Text(
-                    if (lockedCount == 0) "Tidak ada yang dikunci" else "$lockedCount dari ${children.size} anak dikunci",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (lockedCount > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Icon(
-                if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                contentDescription = if (expanded) "Sembunyikan" else "Tampilkan"
-            )
-        }
-
-        if (expanded) {
-            Spacer(Modifier.height(8.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                children.forEach { child ->
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(child.name)
-                        Switch(
-                            checked = child.lockModeEnabled,
-                            onCheckedChange = { onSetLock(child.id, it) },
-                            enabled = !loading
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-/**
  * Filter "Semua tugas": dua dropdown berdampingan (anak & status), bukan baris chip yang
  * digulir - lebih ringkas di layar sempit. Dropdown anak hanya muncul kalau ada lebih dari
  * satu profil anak (percuma memfilter kalau cuma satu).
@@ -592,89 +710,6 @@ private fun FilterDropdown(
                 DropdownMenuItem(text = { Text(optionLabel) }, onClick = { onSelect(value); expanded = false })
             }
         }
-    }
-}
-
-/**
- * Pengaturan orang tua: kelola profil anak (tambah/hapus) - dipisah dari layar utama
- * (dibuka lewat ikon gerigi) supaya layar utama tidak dipenuhi aksi yang jarang dipakai.
- */
-@Composable
-private fun ParentSettingsDialog(
-    children: List<UserDto>,
-    loading: Boolean,
-    onAddChild: (name: String, pin: String) -> Unit,
-    onDeleteChild: (childId: String) -> Unit,
-    onDismiss: () -> Unit
-) {
-    var showAddChild by remember { mutableStateOf(false) }
-    var childPendingDelete by remember { mutableStateOf<UserDto?>(null) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Pengaturan") },
-        text = {
-            Column {
-                Text("Profil Anak", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                if (children.isEmpty()) {
-                    Text(
-                        "Belum ada profil anak.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                } else {
-                    children.forEach { child ->
-                        Row(
-                            Modifier.fillMaxWidth().padding(vertical = 6.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(child.name)
-                            IconButton(onClick = { childPendingDelete = child }) {
-                                Icon(Icons.Default.Delete, contentDescription = "Hapus ${child.name}", tint = MaterialTheme.colorScheme.error)
-                            }
-                        }
-                    }
-                }
-                Spacer(Modifier.height(8.dp))
-                HorizontalDivider()
-                Spacer(Modifier.height(12.dp))
-                OutlinedButton(onClick = { showAddChild = true }, modifier = Modifier.fillMaxWidth()) {
-                    Text("+ Tambah Anak")
-                }
-            }
-        },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Tutup") } }
-    )
-
-    if (showAddChild) {
-        AddChildDialog(
-            loading = loading,
-            onDismiss = { showAddChild = false },
-            onSubmit = { name, pin -> onAddChild(name, pin); showAddChild = false }
-        )
-    }
-
-    val deleteTarget = childPendingDelete
-    if (deleteTarget != null) {
-        AlertDialog(
-            onDismissRequest = { childPendingDelete = null },
-            title = { Text("Hapus profil ${deleteTarget.name}?") },
-            text = {
-                Text(
-                    "Semua tugas dan riwayatnya akan ikut terhapus, dan perangkat anak ini " +
-                        "akan otomatis keluar. Tindakan ini tidak bisa dibatalkan."
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = { onDeleteChild(deleteTarget.id); childPendingDelete = null },
-                    enabled = !loading,
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) { Text("Hapus") }
-            },
-            dismissButton = { TextButton(onClick = { childPendingDelete = null }) { Text("Batal") } }
-        )
     }
 }
 

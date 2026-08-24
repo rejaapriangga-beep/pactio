@@ -124,14 +124,16 @@ private fun PactioApp() {
                         onCreateTask = viewModel::createTask,
                         onDecide = viewModel::decideTask,
                         onSetLock = { childId, enabled -> viewModel.setChildLock(childId, enabled) },
-                        onDismissMessage = viewModel::dismissMessages
+                        onDismissMessage = viewModel::dismissMessages,
+                        onRefreshChatUnread = viewModel::refreshChatUnread
                     )
 
                     else -> ChildScreen(
                         state = state,
                         onSubmitTask = { taskId, evidence, files -> viewModel.submitTask(taskId, evidence, files) },
                         onRedeemBalance = { minutes -> viewModel.redeemAccessBalance(minutes) },
-                        onDismissMessage = viewModel::dismissMessages
+                        onDismissMessage = viewModel::dismissMessages,
+                        onRefreshChatUnread = viewModel::refreshChatUnread
                     )
                 }
 

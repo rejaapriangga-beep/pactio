@@ -120,9 +120,52 @@ object PactioApi {
     }
 
     /** Mengambil byte mentah satu berkas bukti tugas (foto/dokumen) lewat id-nya. */
-    suspend fun getEvidenceFileBytes(token: String, taskId: String, fileId: String): ByteArray = withContext(Dispatchers.IO) {
+    suspend fun getEvidenceFileBytes(token: String, taskId: String, fileId: String): ByteArray =
+        getBytes(token, "/tasks/$taskId/evidence/$fileId", "Gagal memuat berkas bukti")
+
+    /** Mengambil byte mentah satu foto chat - lihat catatan retensi di ChatMessageDto/server.js. */
+    suspend fun getChatPhotoBytes(token: String, childId: String, messageId: String): ByteArray =
+        getBytes(token, "/chat/$childId/messages/$messageId/photo", "Gagal memuat foto chat")
+
+    /** Isi thread chat satu anak, terurut lama -> baru (maks 200 pesan terakhir - lihat server.js). */
+    suspend fun getChatMessages(token: String, childId: String): List<ChatMessageDto> {
+        val json = request("GET", "/chat/$childId/messages", token = token, body = null)
+        val array = json.getJSONArray("messages")
+        return (0 until array.length()).map { array.getJSONObject(it).toChatMessageDto() }
+    }
+
+    suspend fun sendChatText(token: String, childId: String, text: String): ChatMessageDto {
+        val body = JSONObject().put("type", "text").put("text", text)
+        val json = request("POST", "/chat/$childId/messages", token = token, body = body)
+        return json.getJSONObject("message").toChatMessageDto()
+    }
+
+    /** photoDataUri: "data:image/jpeg;base64,..." atau "data:image/png;base64,...". */
+    suspend fun sendChatPhoto(token: String, childId: String, photoDataUri: String): ChatMessageDto {
+        val body = JSONObject().put("type", "photo").put("photo", photoDataUri)
+        val json = request("POST", "/chat/$childId/messages", token = token, body = body)
+        return json.getJSONObject("message").toChatMessageDto()
+    }
+
+    /** Menandai thread ini sudah dibaca sampai sekarang - lihat badge unread di tab Chat. */
+    suspend fun markChatRead(token: String, childId: String) {
+        request("POST", "/chat/$childId/read", token = token, body = JSONObject())
+    }
+
+    suspend fun getChatUnreadSummary(token: String): ChatUnreadSummary {
+        val json = request("GET", "/chat/unread-summary", token = token, body = null)
+        val array = json.getJSONArray("threads")
+        val threads = (0 until array.length()).map {
+            val thread = array.getJSONObject(it)
+            ChatThreadUnread(childId = thread.getString("childId"), unreadCount = thread.getInt("unreadCount"))
+        }
+        return ChatUnreadSummary(total = json.getInt("total"), threads = threads)
+    }
+
+    /** Dipakai getEvidenceFileBytes & getChatPhotoBytes - dua endpoint biner yang sama-sama butuh Authorization tapi bukan JSON. */
+    private suspend fun getBytes(token: String, path: String, errorLabel: String): ByteArray = withContext(Dispatchers.IO) {
         val connection = try {
-            URL(BASE_URL + "/tasks/$taskId/evidence/$fileId").openConnection() as HttpsURLConnection
+            URL(BASE_URL + path).openConnection() as HttpsURLConnection
         } catch (error: IOException) {
             throw ApiException.Network("Tidak dapat menghubungi server: ${error.message}")
         }
@@ -137,7 +180,7 @@ object PactioApi {
                 val errorBody = readStream(connection.errorStream)
                 val json = if (errorBody.isBlank()) JSONObject() else parseJsonObject(errorBody)
                 if (status == 401) throw ApiException.Unauthorized(json.optString("error", "Sesi tidak valid, silakan masuk kembali."))
-                throw ApiException.Http(status, json.optString("error", "Gagal memuat berkas bukti (HTTP $status)."))
+                throw ApiException.Http(status, json.optString("error", "$errorLabel (HTTP $status)."))
             }
             connection.inputStream.use { it.readBytes() }
         } catch (error: ApiException) {
@@ -278,6 +321,18 @@ object PactioApi {
         submittedAt = if (has("submittedAt") && !isNull("submittedAt")) getString("submittedAt") else null,
         decisionNote = if (has("decisionNote") && !isNull("decisionNote")) getString("decisionNote") else null,
         decidedAt = if (has("decidedAt") && !isNull("decidedAt")) getString("decidedAt") else null
+    )
+
+    private fun JSONObject.toChatMessageDto() = ChatMessageDto(
+        id = getString("id"),
+        childId = getString("childId"),
+        senderId = getString("senderId"),
+        senderRole = getString("senderRole"),
+        type = getString("type"),
+        text = if (has("text") && !isNull("text")) getString("text") else null,
+        photoMime = if (has("photoMime") && !isNull("photoMime")) getString("photoMime") else null,
+        photoAvailable = optBoolean("photoAvailable", false),
+        createdAt = getString("createdAt")
     )
 
     private fun JSONObject.toBalanceResult() = BalanceResult(

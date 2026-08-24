@@ -67,6 +67,27 @@ data class BalanceResult(
     val unlockUntil: Long = 0L
 )
 
+/**
+ * Satu pesan chat orang tua<->anak. Thread-nya per anak (childId) - byte foto TIDAK ikut di
+ * sini, diambil terpisah lewat GET /chat/:childId/messages/:id/photo selagi photoAvailable
+ * masih true (server cuma meneruskan sementara, lihat catatan CHAT_PHOTO_RETENTION_MS di
+ * server.js - salinan permanennya ada di ChatPhotoCache lokal masing-masing perangkat).
+ */
+data class ChatMessageDto(
+    val id: String,
+    val childId: String,
+    val senderId: String,
+    val senderRole: String, // "parent" atau "child"
+    val type: String, // "text" atau "photo"
+    val text: String?,
+    val photoMime: String?,
+    val photoAvailable: Boolean,
+    val createdAt: String
+)
+
+data class ChatThreadUnread(val childId: String, val unreadCount: Int)
+data class ChatUnreadSummary(val total: Int, val threads: List<ChatThreadUnread>)
+
 fun statusLabel(status: String): String = when (status) {
     "assigned" -> "Belum dikirim"
     "submitted" -> "Menunggu persetujuan"

@@ -30,10 +30,15 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -82,38 +87,58 @@ fun ChildScreen(
     state: UiState,
     onSubmitTask: (taskId: String, evidence: String, evidenceFiles: List<String>) -> Unit,
     onRedeemBalance: (minutes: Int) -> Unit,
-    onDismissMessage: () -> Unit
+    onDismissMessage: () -> Unit,
+    onRefreshChatUnread: () -> Unit
 ) {
+    val context = LocalContext.current
+    var selectedTab by remember { mutableStateOf(0) }
     var submittingTask by remember { mutableStateOf<TaskDto?>(null) }
     var showRedeemDialog by remember { mutableStateOf(false) }
 
-    Column(Modifier.fillMaxSize().padding(16.dp)) {
+    // Kontrol Perangkat: nyala/matikan DeviceLockService mengikuti status izin "Tampil di atas
+    // aplikasi lain" - dihoist ke SINI (bukan di dalam konten tab "Kunci Perangkat") supaya
+    // layanannya tetap berjalan terlepas dari tab mana yang sedang aktif; kalau ini ditaruh di
+    // dalam badan tab, pindah ke tab lain akan ikut mematikan Mode Kunci tanpa sepengetahuan
+    // siapa pun - jelas bertentangan dengan tujuan fitur ini.
+    var hasOverlay by remember { mutableStateOf(DeviceLockPermissions.hasOverlayPermission(context)) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            hasOverlay = DeviceLockPermissions.hasOverlayPermission(context)
+            delay(2000)
+        }
+    }
+    LaunchedEffect(hasOverlay) {
+        val intent = Intent(context, DeviceLockService::class.java)
+        if (hasOverlay) context.startForegroundService(intent) else context.stopService(intent)
+    }
+    DisposableEffect(Unit) {
+        onDispose { context.stopService(Intent(context, DeviceLockService::class.java)) }
+    }
+
+    val tabs = listOf(
+        TabItem("Dashboard", Icons.Default.Dashboard),
+        TabItem("Tugas", Icons.Default.Checklist),
+        TabItem("Chat", Icons.Default.Chat, badgeCount = state.chatUnreadTotal),
+        TabItem("Kunci", Icons.Default.Lock),
+        TabItem("Atur", Icons.Default.Settings)
+    )
+
+    Column(Modifier.fillMaxSize()) {
         state.errorMessage?.let {
-            ErrorBanner(it, onDismissMessage)
-            Spacer(Modifier.height(12.dp))
+            Box(Modifier.padding(16.dp)) { ErrorBanner(it, onDismissMessage) }
         }
 
-        DeviceLockController()
+        PactioTabRow(items = tabs, selectedIndex = selectedTab, onSelect = { selectedTab = it })
 
-        AccessBalanceCard(
-            balanceMinutes = state.balanceMinutes,
-            approvedTaskCount = state.approvedTaskCount,
-            unlockUntil = state.unlockUntil,
-            onGunakanWaktu = { showRedeemDialog = true }
-        )
-
-        Spacer(Modifier.height(20.dp))
-        Text("Tugas Kamu", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
-        Spacer(Modifier.height(8.dp))
-
-        if (state.tasks.isEmpty()) {
-            Text("Belum ada tugas dari orang tua.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(state.tasks, key = { it.id }) { task ->
-                    ChildTaskCard(task = task, loading = state.loading, onKirim = { submittingTask = task })
-                }
+        when (selectedTab) {
+            0 -> ChildDashboardTab(state = state, onGunakanWaktu = { showRedeemDialog = true })
+            1 -> ChildTaskListTab(state = state, onKirim = { submittingTask = it })
+            2 -> {
+                val childId = state.currentUser?.id
+                if (childId != null) ChatScreen(state = state, childId = childId, onRefreshUnread = onRefreshChatUnread)
             }
+            3 -> ChildLockTab(hasOverlay = hasOverlay, onOpenSettings = { context.startActivity(DeviceLockPermissions.overlaySettingsIntent(context)) })
+            4 -> ChildSettingsTab(state = state)
         }
     }
 
@@ -139,6 +164,112 @@ fun ChildScreen(
                 onRedeemBalance(minutes)
                 showRedeemDialog = false
             }
+        )
+    }
+}
+
+/** Saldo akses + ringkasan singkat jumlah tugas per status, supaya anak langsung tahu status keseluruhannya begitu buka aplikasi. */
+@Composable
+private fun ChildDashboardTab(state: UiState, onGunakanWaktu: () -> Unit) {
+    Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        AccessBalanceCard(
+            balanceMinutes = state.balanceMinutes,
+            approvedTaskCount = state.approvedTaskCount,
+            unlockUntil = state.unlockUntil,
+            onGunakanWaktu = onGunakanWaktu
+        )
+        val belumDikirim = state.tasks.count { it.status == "assigned" || it.status == "rejected" }
+        val menunggu = state.tasks.count { it.status == "submitted" }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            ChildStatCard(modifier = Modifier.weight(1f), label = "Belum Dikirim", value = belumDikirim.toString())
+            ChildStatCard(modifier = Modifier.weight(1f), label = "Menunggu Approval", value = menunggu.toString())
+        }
+    }
+}
+
+@Composable
+private fun ChildStatCard(modifier: Modifier = Modifier, label: String, value: String) {
+    Card(modifier = modifier, shape = RoundedCornerShape(16.dp)) {
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            Text(value, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun ChildTaskListTab(state: UiState, onKirim: (TaskDto) -> Unit) {
+    Column(Modifier.fillMaxSize().padding(16.dp)) {
+        if (state.tasks.isEmpty()) {
+            Text("Belum ada tugas dari orang tua.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(state.tasks, key = { it.id }) { task ->
+                    ChildTaskCard(task = task, loading = state.loading, onKirim = { onKirim(task) })
+                }
+            }
+        }
+    }
+}
+
+/** Status izin Mode Kunci - anak cuma bisa MELIHAT status & memberi izin, mengaktifkan/mematikan kuncinya sendiri tetap wewenang orang tua. */
+@Composable
+private fun ChildLockTab(hasOverlay: Boolean, onOpenSettings: () -> Unit) {
+    Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("Kunci Perangkat", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Card(
+            colors = CardDefaults.cardColors(
+                containerColor = if (hasOverlay) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.secondaryContainer
+            )
+        ) {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    if (hasOverlay) "Izin diberikan" else "Izin belum diberikan",
+                    fontWeight = FontWeight.Bold,
+                    color = if (hasOverlay) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onSecondaryContainer
+                )
+                Text(
+                    if (hasOverlay) {
+                        "Orang tua bisa mengunci akses ke aplikasi lain kalau perlu. Kamu bisa mencabut izin ini kapan saja lewat Pengaturan HP."
+                    } else {
+                        "Supaya orang tua bisa mengunci akses aplikasi lain kalau perlu, izinkan akses berikut lewat Pengaturan HP. Bisa dicabut kapan saja."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (hasOverlay) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onSecondaryContainer
+                )
+                if (!hasOverlay) {
+                    Button(onClick = onOpenSettings, modifier = Modifier.fillMaxWidth()) {
+                        Text("Izinkan Tampil di Atas Aplikasi Lain")
+                    }
+                }
+            }
+        }
+        Text(
+            "Kunci/buka kunci perangkat hanya bisa diatur oleh orang tua. Kamu tetap bisa memakai saldo menit hadiah untuk membuka akses sementara lewat tab Dashboard.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+/** Info akun singkat - tidak banyak yang bisa diubah anak sendiri, sebagian besar pengaturan ada di tangan orang tua. */
+@Composable
+private fun ChildSettingsTab(state: UiState) {
+    Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("Pengaturan", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Card {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Nama", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(state.currentUser?.name ?: "-", fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(8.dp))
+                Text("Keluarga", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(state.family?.name ?: "-", fontWeight = FontWeight.SemiBold)
+            }
+        }
+        Text(
+            "Untuk keluar dari akun ini, gunakan tombol \"Keluar\" di pojok kanan atas.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
@@ -491,49 +622,4 @@ private fun Bitmap.toJpegDataUri(): String {
     compress(Bitmap.CompressFormat.JPEG, 80, output)
     val base64 = Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)
     return "data:image/jpeg;base64,$base64"
-}
-
-/**
- * Menyalakan/mematikan DeviceLockService mengikuti status izin "Tampil di atas aplikasi
- * lain", dan menampilkan kartu ajakan izin kalau belum diberikan. Izin dicek ulang tiap 2
- * detik (bukan lewat lifecycle observer) supaya kembali dari halaman Pengaturan langsung
- * terdeteksi tanpa dependency lifecycle-compose tambahan.
- */
-@Composable
-private fun DeviceLockController() {
-    val context = LocalContext.current
-    var hasOverlay by remember { mutableStateOf(DeviceLockPermissions.hasOverlayPermission(context)) }
-
-    LaunchedEffect(Unit) {
-        while (true) {
-            hasOverlay = DeviceLockPermissions.hasOverlayPermission(context)
-            delay(2000)
-        }
-    }
-
-    LaunchedEffect(hasOverlay) {
-        val intent = Intent(context, DeviceLockService::class.java)
-        if (hasOverlay) context.startForegroundService(intent) else context.stopService(intent)
-    }
-    DisposableEffect(Unit) {
-        onDispose { context.stopService(Intent(context, DeviceLockService::class.java)) }
-    }
-
-    if (!hasOverlay) {
-        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
-            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Kontrol Perangkat", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
-                Text(
-                    "Supaya orang tua bisa mengunci akses aplikasi lain kalau perlu, izinkan akses berikut lewat Pengaturan HP. Bisa dicabut kapan saja.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer
-                )
-                Button(
-                    onClick = { context.startActivity(DeviceLockPermissions.overlaySettingsIntent(context)) },
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("Izinkan Tampil di Atas Aplikasi Lain") }
-            }
-        }
-        Spacer(Modifier.height(16.dp))
-    }
 }

@@ -15,6 +15,18 @@ const PHOTOS_DIR = path.join(path.dirname(DATA_FILE), "photos");
 fs.mkdirSync(PHOTOS_DIR, { recursive: true });
 const MAX_EVIDENCE_FILE_BYTES = 5 * 1024 * 1024; // 5MB per berkas
 const MAX_EVIDENCE_FILES = 5; // per pengiriman tugas
+
+// Foto chat HANYA diteruskan (relay) ke penerima, TIDAK disimpan permanen di server - sesuai
+// permintaan eksplisit ("fotonya disimpan di lokal pengirim dan penerima, hanya lewat saja di
+// server"). Byte foto ditaruh sementara di sini, disalin ke penyimpanan lokal masing-masing
+// perangkat begitu terkirim/diterima (lihat ChatScreen di Android), lalu disapu otomatis dari
+// server setelah CHAT_PHOTO_RETENTION_MS walau belum pernah diambil (sweepStaleChatPhotos) -
+// sengaja retensi berbasis waktu, BUKAN hapus-setelah-sekali-diambil, supaya tidak hilang kalau
+// akun yang sama login di lebih dari satu perangkat atau unduhan pertama gagal di tengah jalan.
+const CHAT_RELAY_DIR = path.join(path.dirname(DATA_FILE), "chat_relay");
+fs.mkdirSync(CHAT_RELAY_DIR, { recursive: true });
+const CHAT_PHOTO_RETENTION_MS = 48 * 60 * 60 * 1000; // 48 jam
+const MAX_CHAT_TEXT_LENGTH = 2000;
 // Client ID OAuth tipe "Web application" dari Google Cloud Console. Ini BUKAN rahasia
 // (Client ID memang publik, sama seperti yang dibundel di aplikasi Android) — dipakai
 // di sini hanya untuk memeriksa klaim "aud" pada token ID Google. Kalau kosong, endpoint
@@ -29,13 +41,15 @@ const GOOGLE_WEB_CLIENT_ID = process.env.GOOGLE_WEB_CLIENT_ID || "";
 const sessions = new Map();
 
 function initialData() {
-  return { families: [], users: [], tasks: [], sessions: [] };
+  return { families: [], users: [], tasks: [], sessions: [], chatMessages: [], chatReadState: {} };
 }
 
 function loadData() {
   if (!fs.existsSync(DATA_FILE)) return initialData();
   const loaded = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
   if (!Array.isArray(loaded.sessions)) loaded.sessions = [];
+  if (!Array.isArray(loaded.chatMessages)) loaded.chatMessages = [];
+  if (!loaded.chatReadState || typeof loaded.chatReadState !== "object") loaded.chatReadState = {};
   // Migrasi tugas lama: dulu cuma 1 foto per tugas (task.evidencePhotoType, file bernama
   // "{taskId}.{ext}"). Sekarang beberapa berkas (task.evidenceFiles[]) - foto lama dipetakan
   // jadi satu entri berid "legacy" supaya tetap bisa dibuka tanpa perlu upload ulang.
@@ -269,6 +283,86 @@ function saveEvidenceFiles(task, dataUris) {
   });
 }
 
+// --- Chat orang tua <-> anak -------------------------------------------------------
+// Satu thread per anak (childId) - orang tua & anak itu yang jadi dua pesertanya. Pesan teks
+// disimpan permanen di data.json (riwayat obrolan biasa); byte foto TIDAK - lihat catatan di
+// CHAT_RELAY_DIR di atas.
+
+function chatPhotoPath(messageId, ext) {
+  return path.join(CHAT_RELAY_DIR, `${messageId}.${ext}`);
+}
+
+/**
+ * Mengembalikan child user yang jadi lawan bicara thread ini, atau null kalau `user` tidak
+ * berhak mengakses thread childId ini - anak cuma boleh akses thread miliknya sendiri; orang
+ * tua cuma boleh akses thread anak di keluarganya sendiri.
+ */
+function chatThreadChild(user, childId) {
+  if (user.role === "child") return user.id === childId ? user : null;
+  return db.users.find((item) => item.id === childId && item.familyId === user.familyId && item.role === "child") || null;
+}
+
+/** Thread key dipakai juga untuk menyimpan cursor "sudah dibaca sampai" per pengguna. */
+function chatReadCursor(userId, childId) {
+  return db.chatReadState[userId]?.[childId] || null;
+}
+
+function setChatReadCursor(userId, childId, iso) {
+  db.chatReadState[userId] = db.chatReadState[userId] || {};
+  db.chatReadState[userId][childId] = iso;
+}
+
+function unreadCountFor(userId, childId) {
+  const cursor = chatReadCursor(userId, childId);
+  return db.chatMessages.filter((message) =>
+    message.childId === childId &&
+    message.senderId !== userId &&
+    (!cursor || message.createdAt > cursor)
+  ).length;
+}
+
+/**
+ * Menghapus byte foto chat yang sudah lewat masa retensinya dari disk (walau belum pernah
+ * diambil kedua pihak) - dipanggil sekali saat startup lalu berkala lewat setInterval. Metadata
+ * pesannya (siapa mengirim, kapan) TETAP ada di riwayat, cuma photoAvailable jadi false supaya
+ * klien tahu harus pakai salinan lokalnya sendiri, bukan menampilkan gambar rusak.
+ */
+function sweepStaleChatPhotos() {
+  const cutoff = Date.now() - CHAT_PHOTO_RETENTION_MS;
+  let changed = false;
+  for (const message of db.chatMessages) {
+    if (message.type === "photo" && message.photoAvailable && new Date(message.createdAt).getTime() < cutoff) {
+      const ext = EVIDENCE_MIME_EXT[message.photoMime];
+      const filePath = ext && chatPhotoPath(message.id, ext);
+      if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      message.photoAvailable = false;
+      changed = true;
+    }
+  }
+  if (changed) save();
+}
+
+/** Bentuk pesan yang dikirim ke klien - tidak pernah menyertakan byte foto (diambil terpisah). */
+function publicChatMessage(message) {
+  return {
+    id: message.id,
+    childId: message.childId,
+    senderId: message.senderId,
+    senderRole: message.senderRole,
+    type: message.type,
+    text: message.text,
+    photoMime: message.photoMime,
+    photoAvailable: message.photoAvailable,
+    createdAt: message.createdAt
+  };
+}
+
+// Dijalankan di sini (bukan langsung setelah loadData() di atas) - butuh EVIDENCE_MIME_EXT
+// & chatPhotoPath yang baru selesai didefinisikan tepat di atas ini (const/function-const
+// tidak bisa dipakai sebelum baris deklarasinya sendiri selesai dieksekusi).
+sweepStaleChatPhotos();
+setInterval(sweepStaleChatPhotos, 60 * 60 * 1000).unref();
+
 async function route(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const pathname = url.pathname;
@@ -375,6 +469,17 @@ async function route(req, res) {
       deleteEvidenceFiles(task);
     }
     db.tasks = db.tasks.filter((item) => item.childId !== child.id);
+    // Riwayat chat & foto relay-nya ikut terhapus - thread ini tidak berarti apa-apa lagi
+    // tanpa salah satu pesertanya.
+    for (const message of db.chatMessages.filter((item) => item.childId === child.id)) {
+      if (message.type === "photo" && message.photoAvailable) {
+        const ext = EVIDENCE_MIME_EXT[message.photoMime];
+        const filePath = ext && chatPhotoPath(message.id, ext);
+        if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      }
+    }
+    db.chatMessages = db.chatMessages.filter((item) => item.childId !== child.id);
+    for (const userId of Object.keys(db.chatReadState)) delete db.chatReadState[userId][child.id];
     db.users = db.users.filter((item) => item.id !== child.id);
     for (const [token, record] of sessions) {
       if (record.userId === child.id) sessions.delete(token);
@@ -527,6 +632,88 @@ async function route(req, res) {
     child.unlockUntil = base + minutes * 60 * 1000;
     save();
     return send(res, 200, { ...accessBalanceFor(child), unlockUntil: child.unlockUntil });
+  }
+
+  // Ringkasan belum-dibaca untuk badge tab Chat - dihitung per thread anak (orang tua bisa
+  // punya beberapa anak, jadi beberapa thread), lalu dijumlah jadi satu angka `total` untuk
+  // badge tab-nya. threads[] dipakai kalau UI ingin menonjolkan anak mana yang punya pesan baru.
+  if (req.method === "GET" && pathname === "/chat/unread-summary") {
+    const user = auth(req, res); if (!user) return;
+    const childIds = user.role === "child"
+      ? [user.id]
+      : db.users.filter((item) => item.familyId === user.familyId && item.role === "child").map((item) => item.id);
+    const threads = childIds.map((childId) => ({ childId, unreadCount: unreadCountFor(user.id, childId) }));
+    const total = threads.reduce((sum, thread) => sum + thread.unreadCount, 0);
+    return send(res, 200, { total, threads });
+  }
+
+  const chatMessagesMatch = pathname.match(/^\/chat\/([^/]+)\/messages$/);
+  if (req.method === "GET" && chatMessagesMatch) {
+    const user = auth(req, res); if (!user) return;
+    const child = chatThreadChild(user, chatMessagesMatch[1]);
+    if (!child) return send(res, 404, { error: "Thread chat tidak ditemukan." });
+    // Riwayat kecil (satu keluarga, bukan aplikasi chat umum) - cukup ambil semua lalu potong
+    // 200 pesan terakhir, tidak perlu paginasi bertingkat.
+    const thread = db.chatMessages.filter((message) => message.childId === child.id).slice(-200);
+    return send(res, 200, { messages: thread.map(publicChatMessage) });
+  }
+
+  if (req.method === "POST" && chatMessagesMatch) {
+    const user = auth(req, res); if (!user) return;
+    const child = chatThreadChild(user, chatMessagesMatch[1]);
+    if (!child) return send(res, 404, { error: "Thread chat tidak ditemukan." });
+    const body = await bodyOf(req);
+    const type = body.type === "photo" ? "photo" : "text";
+
+    const message = {
+      id: id("chatmsg"), childId: child.id, senderId: user.id, senderRole: user.role,
+      type, text: null, photoMime: null, photoAvailable: false, createdAt: new Date().toISOString()
+    };
+
+    if (type === "text") {
+      message.text = requireText(body.text, "Pesan");
+      if (message.text.length > MAX_CHAT_TEXT_LENGTH) return send(res, 400, { error: `Pesan maksimal ${MAX_CHAT_TEXT_LENGTH} karakter.` });
+    } else {
+      let file;
+      try { file = validateEvidenceFile(body.photo); }
+      catch (error) { return send(res, 400, { error: error.message }); }
+      if (file.mime === "application/pdf") return send(res, 400, { error: "Chat hanya menerima foto (JPEG/PNG), bukan dokumen." });
+      fs.writeFileSync(chatPhotoPath(message.id, file.ext), file.buffer);
+      message.photoMime = file.mime;
+      message.photoAvailable = true;
+    }
+
+    db.chatMessages.push(message); save();
+    return send(res, 201, { message: publicChatMessage(message) });
+  }
+
+  const chatPhotoMatch = pathname.match(/^\/chat\/([^/]+)\/messages\/([^/]+)\/photo$/);
+  if (req.method === "GET" && chatPhotoMatch) {
+    const user = auth(req, res); if (!user) return;
+    const child = chatThreadChild(user, chatPhotoMatch[1]);
+    if (!child) return send(res, 404, { error: "Thread chat tidak ditemukan." });
+    const message = db.chatMessages.find((item) => item.id === chatPhotoMatch[2] && item.childId === child.id);
+    if (!message || message.type !== "photo" || !message.photoAvailable) {
+      return send(res, 404, { error: "Foto sudah tidak tersedia di server (hanya diteruskan sementara, lihat salinan lokal kamu)." });
+    }
+    const filePath = chatPhotoPath(message.id, EVIDENCE_MIME_EXT[message.photoMime]);
+    if (!fs.existsSync(filePath)) return send(res, 404, { error: "Foto sudah tidak tersedia di server." });
+    const buffer = fs.readFileSync(filePath);
+    res.writeHead(200, { "Content-Type": message.photoMime, "Content-Length": buffer.length, "Cache-Control": "private, no-store" });
+    return res.end(buffer);
+  }
+
+  // Menandai thread sudah dibaca sampai sekarang - dipanggil klien saat tab Chat dibuka /
+  // thread aktif menerima pesan baru. Dipisah dari GET /messages supaya membaca riwayat tidak
+  // otomatis mengubah status baca (mis. polling latar belakang).
+  const chatReadMatch = pathname.match(/^\/chat\/([^/]+)\/read$/);
+  if (req.method === "POST" && chatReadMatch) {
+    const user = auth(req, res); if (!user) return;
+    const child = chatThreadChild(user, chatReadMatch[1]);
+    if (!child) return send(res, 404, { error: "Thread chat tidak ditemukan." });
+    setChatReadCursor(user.id, child.id, new Date().toISOString());
+    save();
+    return send(res, 200, { ok: true });
   }
 
   send(res, 404, { error: "Endpoint tidak ditemukan." });
