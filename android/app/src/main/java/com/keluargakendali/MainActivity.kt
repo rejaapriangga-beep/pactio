@@ -138,6 +138,7 @@ private fun PactioApp() {
                         onDecide = viewModel::decideTask,
                         onSetLock = { childId, enabled -> viewModel.setChildLock(childId, enabled) },
                         onCreateTask = viewModel::createTask,
+                        onAddChild = viewModel::addChild,
                         onDismissMessage = viewModel::dismissMessages,
                         onRefreshChatUnread = viewModel::refreshChatUnread
                     )
@@ -175,7 +176,6 @@ private fun PactioApp() {
                     loading = state.loading,
                     token = state.token,
                     familyName = state.family?.name,
-                    onAddChild = viewModel::addChild,
                     onDeleteChild = viewModel::deleteChild,
                     onResetPin = viewModel::resetChildPin,
                     onDismiss = { showSettings = false }

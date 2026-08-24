@@ -75,6 +75,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Dp
@@ -100,6 +101,7 @@ fun ParentScreen(
     onDecide: (taskId: String, approved: Boolean, note: String) -> Unit,
     onSetLock: (childId: String, enabled: Boolean) -> Unit,
     onCreateTask: (childId: String, title: String, description: String, rewardMinutes: Int) -> Unit,
+    onAddChild: (name: String, pin: String) -> Unit,
     onDismissMessage: () -> Unit,
     onRefreshChatUnread: () -> Unit
 ) {
@@ -151,7 +153,7 @@ fun ParentScreen(
                 onSelectThread = { selectedChatThreadId = it },
                 onRefreshUnread = onRefreshChatUnread
             )
-            4 -> ParentLockTab(children = state.children, loading = state.loading, onSetLock = onSetLock)
+            4 -> ParentLockTab(children = state.children, loading = state.loading, onSetLock = onSetLock, onAddChild = onAddChild)
         }
     }
 
@@ -191,12 +193,10 @@ fun ParentSettingsDialog(
     loading: Boolean,
     token: String?,
     familyName: String?,
-    onAddChild: (name: String, pin: String) -> Unit,
     onDeleteChild: (childId: String) -> Unit,
     onResetPin: (childId: String, pin: String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var showAddChild by remember { mutableStateOf(false) }
     var childPendingDelete by remember { mutableStateOf<UserDto?>(null) }
     var childPendingResetPin by remember { mutableStateOf<UserDto?>(null) }
 
@@ -236,12 +236,12 @@ fun ParentSettingsDialog(
                         }
                     }
                 }
-                Spacer(Modifier.height(8.dp))
-                HorizontalDivider()
-                Spacer(Modifier.height(12.dp))
-                OutlinedButton(onClick = { showAddChild = true }, modifier = Modifier.fillMaxWidth()) {
-                    Text("+ Tambah Anak")
-                }
+                Text(
+                    "Tambah profil anak baru sekarang ada di tab Kunci Perangkat.",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontStyle = FontStyle.Italic,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
 
                 Spacer(Modifier.height(20.dp))
                 HorizontalDivider()
@@ -265,14 +265,6 @@ fun ParentSettingsDialog(
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Tutup") } }
     )
-
-    if (showAddChild) {
-        AddChildDialog(
-            loading = loading,
-            onDismiss = { showAddChild = false },
-            onSubmit = { name, pin -> onAddChild(name, pin); showAddChild = false }
-        )
-    }
 
     val resetPinTarget = childPendingResetPin
     if (resetPinTarget != null) {
@@ -883,50 +875,77 @@ private fun ParentChatTab(
 
 /** Kontrol Perangkat - saklar kunci per anak, sekarang tab sendiri jadi bisa ditampilkan penuh (tidak perlu expand/collapse lagi). */
 @Composable
-private fun ParentLockTab(children: List<UserDto>, loading: Boolean, onSetLock: (childId: String, enabled: Boolean) -> Unit) {
+private fun ParentLockTab(
+    children: List<UserDto>,
+    loading: Boolean,
+    onSetLock: (childId: String, enabled: Boolean) -> Unit,
+    onAddChild: (name: String, pin: String) -> Unit
+) {
+    // Pindah ke sini dari Pengaturan - "Kunci Perangkat" adalah tempat orang tua paling sering
+    // berurusan dengan daftar anak sehari-hari, jadi tambah profil anak baru lebih masuk akal di
+    // sini. Reset PIN & Hapus profil TETAP di Pengaturan (aksi yang lebih jarang dipakai).
+    var showAddChild by remember { mutableStateOf(false) }
+
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         if (children.isEmpty()) {
-            Text("Belum ada profil anak.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            return
-        }
-        val lockedCount = children.count { it.lockModeEnabled }
-        Text(
-            if (lockedCount == 0) "Tidak ada yang dikunci" else "$lockedCount dari ${children.size} anak dikunci",
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = if (lockedCount > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(Modifier.height(12.dp))
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(children, key = { it.id }) { child ->
-                Card {
-                    Row(
-                        Modifier.fillMaxWidth().padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(child.name, fontWeight = FontWeight.SemiBold)
-                        Switch(
-                            checked = child.lockModeEnabled,
-                            onCheckedChange = { onSetLock(child.id, it) },
-                            enabled = !loading,
-                            // Merah (bukan warna aksen oranye standar) saat TERKUNCI - kontras
-                            // lebih tinggi & lebih jelas maknanya ("terkunci/dibatasi"), sama
-                            // dengan perubahan warna toggle di web/app.css.
-                            colors = SwitchDefaults.colors(
-                                checkedTrackColor = MaterialTheme.colorScheme.error,
-                                checkedThumbColor = MaterialTheme.colorScheme.onError,
-                                // Track "off" bawaan (outline pucat, sama dengan garis tepi kartu)
-                                // nyaris tidak kelihatan di atas latar krem - lihat PactioSwitchTrackOff.
-                                uncheckedTrackColor = PactioSwitchTrackOff,
-                                uncheckedBorderColor = PactioSwitchTrackOff,
-                                uncheckedThumbColor = MaterialTheme.colorScheme.surface
+            Text(
+                "Belum ada profil anak.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+        } else {
+            val lockedCount = children.count { it.lockModeEnabled }
+            Text(
+                if (lockedCount == 0) "Tidak ada yang dikunci" else "$lockedCount dari ${children.size} anak dikunci",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = if (lockedCount > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(12.dp))
+            LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(children, key = { it.id }) { child ->
+                    Card {
+                        Row(
+                            Modifier.fillMaxWidth().padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(child.name, fontWeight = FontWeight.SemiBold)
+                            Switch(
+                                checked = child.lockModeEnabled,
+                                onCheckedChange = { onSetLock(child.id, it) },
+                                enabled = !loading,
+                                // Merah (bukan warna aksen oranye standar) saat TERKUNCI - kontras
+                                // lebih tinggi & lebih jelas maknanya ("terkunci/dibatasi"), sama
+                                // dengan perubahan warna toggle di web/app.css.
+                                colors = SwitchDefaults.colors(
+                                    checkedTrackColor = MaterialTheme.colorScheme.error,
+                                    checkedThumbColor = MaterialTheme.colorScheme.onError,
+                                    // Track "off" bawaan (outline pucat, sama dengan garis tepi kartu)
+                                    // nyaris tidak kelihatan di atas latar krem - lihat PactioSwitchTrackOff.
+                                    uncheckedTrackColor = PactioSwitchTrackOff,
+                                    uncheckedBorderColor = PactioSwitchTrackOff,
+                                    uncheckedThumbColor = MaterialTheme.colorScheme.surface
+                                )
                             )
-                        )
+                        }
                     }
                 }
             }
+            Spacer(Modifier.height(12.dp))
         }
+
+        OutlinedButton(onClick = { showAddChild = true }, modifier = Modifier.fillMaxWidth()) {
+            Text("+ Tambah Anak")
+        }
+    }
+
+    if (showAddChild) {
+        AddChildDialog(
+            loading = loading,
+            onDismiss = { showAddChild = false },
+            onSubmit = { name, pin -> onAddChild(name, pin); showAddChild = false }
+        )
     }
 }
 

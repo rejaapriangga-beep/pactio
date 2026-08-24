@@ -7,8 +7,9 @@
  * tidak perlu CORS.
  *
  * Cakupan: Dashboard (ringkasan + tugas belum selesai per anak + pratinjau chat grup),
- * Daftar Tugas, Approval Tugas, Kunci Perangkat, Chat, dan Pengaturan (kelola profil anak,
- * reset PIN anak, log aktivitas) - setara aplikasi Android untuk peran orang tua.
+ * Daftar Tugas, Approval Tugas, Kunci Perangkat (+ tambah profil anak baru), Chat, dan
+ * Pengaturan (reset PIN anak, hapus profil anak, cadangan data, log aktivitas) - setara
+ * aplikasi Android untuk peran orang tua.
  *
  * Login HANYA lewat email+password orang tua (POST /auth/login-parent) - akun anak (kode
  * keluarga+PIN) sengaja TIDAK didukung di sini, supaya halaman ini murni jadi kanal kontrol
@@ -1039,30 +1040,43 @@ function approvalCard(task) {
 
 function renderLockTab() {
   const el = document.createElement("div");
+
   if (state.children.length === 0) {
     el.appendChild(emptyHint("Belum ada profil anak."));
-    return el;
-  }
-  const lockedCount = state.children.filter((c) => c.lockModeEnabled).length;
-  const summary = document.createElement("p");
-  summary.className = "lock-summary";
-  summary.style.color = lockedCount > 0 ? "var(--error-text)" : "var(--text-muted)";
-  summary.textContent = lockedCount === 0 ? "Tidak ada yang dikunci" : `${lockedCount} dari ${state.children.length} anak dikunci`;
-  el.appendChild(summary);
+  } else {
+    const lockedCount = state.children.filter((c) => c.lockModeEnabled).length;
+    const summary = document.createElement("p");
+    summary.className = "lock-summary";
+    summary.style.color = lockedCount > 0 ? "var(--error-text)" : "var(--text-muted)";
+    summary.textContent = lockedCount === 0 ? "Tidak ada yang dikunci" : `${lockedCount} dari ${state.children.length} anak dikunci`;
+    el.appendChild(summary);
 
-  state.children.forEach((child) => {
-    const row = document.createElement("div");
-    row.className = "lock-row";
-    row.innerHTML = `
-      <span>${escapeHtml(child.name)}</span>
-      <label class="switch">
-        <input type="checkbox" ${child.lockModeEnabled ? "checked" : ""} ${state.loading ? "disabled" : ""} />
-        <span class="switch-slider"></span>
-      </label>
-    `;
-    row.querySelector("input").addEventListener("change", (event) => handleSetLock(child.id, event.target.checked));
-    el.appendChild(row);
-  });
+    state.children.forEach((child) => {
+      const row = document.createElement("div");
+      row.className = "lock-row";
+      row.innerHTML = `
+        <span>${escapeHtml(child.name)}</span>
+        <label class="switch">
+          <input type="checkbox" ${child.lockModeEnabled ? "checked" : ""} ${state.loading ? "disabled" : ""} />
+          <span class="switch-slider"></span>
+        </label>
+      `;
+      row.querySelector("input").addEventListener("change", (event) => handleSetLock(child.id, event.target.checked));
+      el.appendChild(row);
+    });
+  }
+
+  // Pindah ke sini dari Pengaturan - "Kunci Perangkat" adalah tempat orang tua paling sering
+  // berurusan dengan daftar anak sehari-hari, jadi tambah profil anak baru juga lebih masuk
+  // akal di sini. Reset PIN & Hapus profil TETAP di Pengaturan (aksi yang lebih jarang dipakai).
+  const addBtn = document.createElement("button");
+  addBtn.type = "button";
+  addBtn.className = "btn btn-outline btn-block";
+  addBtn.style.marginTop = "14px";
+  addBtn.textContent = "+ Tambah Anak";
+  addBtn.addEventListener("click", () => { state.showAddChild = true; render(); });
+  el.appendChild(addBtn);
+
   return el;
 }
 
@@ -1099,13 +1113,10 @@ function renderSettingsTab() {
     });
   }
 
-  const addBtn = document.createElement("button");
-  addBtn.type = "button";
-  addBtn.className = "btn btn-outline btn-block";
-  addBtn.style.marginTop = "14px";
-  addBtn.textContent = "+ Tambah Anak";
-  addBtn.addEventListener("click", () => { state.showAddChild = true; render(); });
-  card.appendChild(addBtn);
+  const addChildHint = document.createElement("p");
+  addChildHint.style.cssText = "color: var(--text-muted); font-size: 13px; font-style: italic; margin-top: 10px; margin-bottom: 0;";
+  addChildHint.textContent = "Tambah profil anak baru sekarang ada di tab Kunci Perangkat.";
+  card.appendChild(addChildHint);
 
   el.appendChild(card);
   el.appendChild(renderBackupCard());
