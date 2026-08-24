@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -34,6 +35,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.FactCheck
+import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -74,12 +76,15 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
+import com.keluargakendali.data.ActivityLogEntryDto
+import com.keluargakendali.data.ChatMessageDto
 import com.keluargakendali.data.EVIDENCE_MIME_EXT
 import com.keluargakendali.data.EvidenceFileDto
 import com.keluargakendali.data.FAMILY_CHAT_THREAD_ID
 import com.keluargakendali.data.PactioApi
 import com.keluargakendali.data.TaskDto
 import com.keluargakendali.data.UserDto
+import com.keluargakendali.data.activityActionLabel
 import com.keluargakendali.data.statusLabel
 import java.io.File
 
@@ -170,20 +175,30 @@ fun ParentScreen(
 @Composable
 fun ParentSettingsDialog(
     children: List<UserDto>,
+    activityLog: List<ActivityLogEntryDto>,
     loading: Boolean,
     onAddChild: (name: String, pin: String) -> Unit,
     onDeleteChild: (childId: String) -> Unit,
+    onResetPin: (childId: String, pin: String) -> Unit,
     onDismiss: () -> Unit
 ) {
     var showAddChild by remember { mutableStateOf(false) }
     var childPendingDelete by remember { mutableStateOf<UserDto?>(null) }
+    var childPendingResetPin by remember { mutableStateOf<UserDto?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Pengaturan") },
         text = {
-            Column {
+            // Dialog ini sudah cukup panjang (profil anak + log aktivitas) - digulir supaya
+            // tetap muat di layar kecil, konsisten dengan pola LazyColumn di layar lain.
+            Column(Modifier.verticalScroll(rememberScrollState())) {
                 Text("Profil Anak", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Text(
+                    "PIN anak disimpan terenkripsi dan tidak bisa ditampilkan ulang. Kalau anak lupa PIN, gunakan Reset PIN.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 if (children.isEmpty()) {
                     Text(
                         "Belum ada profil anak.",
@@ -197,7 +212,10 @@ fun ParentSettingsDialog(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(child.name)
+                            Text(child.name, modifier = Modifier.weight(1f))
+                            IconButton(onClick = { childPendingResetPin = child }) {
+                                Icon(Icons.Default.Key, contentDescription = "Reset PIN ${child.name}")
+                            }
                             IconButton(onClick = { childPendingDelete = child }) {
                                 Icon(Icons.Default.Delete, contentDescription = "Hapus ${child.name}", tint = MaterialTheme.colorScheme.error)
                             }
@@ -210,6 +228,20 @@ fun ParentSettingsDialog(
                 OutlinedButton(onClick = { showAddChild = true }, modifier = Modifier.fillMaxWidth()) {
                     Text("+ Tambah Anak")
                 }
+
+                Spacer(Modifier.height(20.dp))
+                HorizontalDivider()
+                Spacer(Modifier.height(12.dp))
+                Text("Log Aktivitas", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                if (activityLog.isEmpty()) {
+                    Text(
+                        "Belum ada aktivitas tercatat.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    activityLog.forEach { entry -> ActivityLogRow(entry) }
+                }
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Tutup") } }
@@ -220,6 +252,16 @@ fun ParentSettingsDialog(
             loading = loading,
             onDismiss = { showAddChild = false },
             onSubmit = { name, pin -> onAddChild(name, pin); showAddChild = false }
+        )
+    }
+
+    val resetPinTarget = childPendingResetPin
+    if (resetPinTarget != null) {
+        ResetPinDialog(
+            childName = resetPinTarget.name,
+            loading = loading,
+            onDismiss = { childPendingResetPin = null },
+            onSubmit = { pin -> onResetPin(resetPinTarget.id, pin); childPendingResetPin = null }
         )
     }
 
@@ -246,11 +288,73 @@ fun ParentSettingsDialog(
     }
 }
 
+@Composable
+private fun ResetPinDialog(childName: String, loading: Boolean, onDismiss: () -> Unit, onSubmit: (String) -> Unit) {
+    var pin by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Reset PIN $childName") },
+        text = {
+            Column {
+                Text(
+                    "PIN lama langsung tidak berlaku begitu PIN baru disimpan. Beri tahu PIN baru ini ke $childName secara langsung.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Spacer(Modifier.height(8.dp))
+                PasswordField(pin, { pin = it.filter { c -> c.isDigit() }.take(8) }, "PIN baru (4-8 digit)", KeyboardType.NumberPassword)
+            }
+        },
+        confirmButton = {
+            Button(onClick = { onSubmit(pin) }, enabled = !loading && pin.length in 4..8) { Text("Simpan PIN Baru") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Batal") } }
+    )
+}
+
+/** Satu baris Log Aktivitas - lihat activityActionLabel di Models.kt untuk pemetaan kode -> teks. */
+@Composable
+private fun ActivityLogRow(entry: ActivityLogEntryDto) {
+    Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(
+                buildString {
+                    append(entry.actorName)
+                    append(if (entry.actorRole == "parent") " (Orang Tua) " else " (Anak) ")
+                    append(activityActionLabel(entry.action))
+                },
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                formatActivityLogTime(entry.createdAt),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        if (entry.detail.isNotBlank()) {
+            Text(entry.detail, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+    HorizontalDivider()
+}
+
+/** Sama polanya dengan formatChatTime di ChatScreen.kt, ditambah tanggal (log aktivitas bisa lebih dari sehari). */
+private fun formatActivityLogTime(iso: String): String = try {
+    val local = java.time.Instant.parse(iso).atZone(java.time.ZoneId.systemDefault())
+    "%02d/%02d %02d:%02d".format(local.dayOfMonth, local.monthValue, local.hour, local.minute)
+} catch (error: Exception) {
+    ""
+}
+
 /** Ringkasan keluarga + aksi utama "Buat Tugas" (FAB bulat "+", gaya dompetdigitalku). */
 @Composable
 private fun ParentDashboardTab(state: UiState, approvalCount: Int, onCreateTask: () -> Unit) {
     Box(Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Column(
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
             Card(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 shape = RoundedCornerShape(22.dp)
@@ -286,6 +390,13 @@ private fun ParentDashboardTab(state: UiState, approvalCount: Int, onCreateTask:
                 DashboardStatCard(modifier = Modifier.weight(1f), label = "Terkunci", value = state.children.count { it.lockModeEnabled }.toString())
                 DashboardStatCard(modifier = Modifier.weight(1f), label = "Total Tugas", value = state.tasks.size.toString())
             }
+
+            if (state.children.isNotEmpty()) {
+                IncompleteTasksByChildCard(children = state.children, tasks = state.tasks)
+                DashboardChatPreviewCard(messages = state.dashboardChatPreview, currentUserId = state.currentUser?.id, children = state.children)
+                // FAB (di bawah) menutupi bagian bawah - beri jarak supaya kartu terakhir tidak tertutup.
+                Spacer(Modifier.height(64.dp))
+            }
         }
 
         if (state.children.isNotEmpty()) {
@@ -294,6 +405,89 @@ private fun ParentDashboardTab(state: UiState, approvalCount: Int, onCreateTask:
                 modifier = Modifier.align(Alignment.BottomEnd).padding(20.dp)
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Buat Tugas")
+            }
+        }
+    }
+}
+
+/** "Tugas belum selesai" = semua status kecuali approved, dipisah per anak - lihat renderDashboardIncompleteTasks di web/app.js (kode yang setara). */
+@Composable
+private fun IncompleteTasksByChildCard(children: List<UserDto>, tasks: List<TaskDto>) {
+    Card {
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            Text("Tugas Belum Selesai", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
+            children.forEach { child ->
+                val incomplete = tasks.filter { it.childId == child.id && it.status != "approved" }
+                Spacer(Modifier.height(10.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(child.name, fontWeight = FontWeight.SemiBold)
+                    if (incomplete.isNotEmpty()) {
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "${incomplete.size} tertunda",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(MaterialTheme.colorScheme.secondaryContainer)
+                                .padding(horizontal = 8.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+                if (incomplete.isEmpty()) {
+                    Text(
+                        "Semua tugas sudah selesai.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    incomplete.forEach { task ->
+                        Row(
+                            Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(task.title, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                            StatusChip(task.status)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Pratinjau 4 pesan terakhir grup keluarga - lihat renderDashboardChatPreview di web/app.js
+ * (kode yang setara). Sengaja TIDAK private - dipakai ulang oleh ChildDashboardTab di
+ * ChildScreen.kt (satu package "ui" yang sama), supaya tampilannya identik di kedua peran.
+ */
+@Composable
+fun DashboardChatPreviewCard(messages: List<ChatMessageDto>, currentUserId: String?, children: List<UserDto>) {
+    Card {
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            Text("Percakapan Grup Terakhir", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
+            Spacer(Modifier.height(6.dp))
+            if (messages.isEmpty()) {
+                Text(
+                    "Belum ada percakapan di grup keluarga.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                messages.forEach { message ->
+                    val senderLabel = when {
+                        message.senderId == currentUserId -> "Kamu"
+                        message.senderRole == "parent" -> "Orang Tua"
+                        else -> children.find { it.id == message.senderId }?.name ?: "Anak"
+                    }
+                    val preview = if (message.type == "photo") "📷 Foto" else (message.text ?: "")
+                    Text(
+                        "$senderLabel: $preview",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(vertical = 3.dp)
+                    )
+                }
             }
         }
     }

@@ -3,7 +3,10 @@ package com.keluargakendali.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.keluargakendali.data.ActivityLogEntryDto
 import com.keluargakendali.data.ApiException
+import com.keluargakendali.data.ChatMessageDto
+import com.keluargakendali.data.FAMILY_CHAT_THREAD_ID
 import com.keluargakendali.data.FamilyDto
 import com.keluargakendali.data.PactioApi
 import com.keluargakendali.data.SecureTokenStore
@@ -34,7 +37,14 @@ data class UiState(
     // TIDAK disimpan di sini (ChatScreen mengurus thread aktifnya sendiri lewat PactioApi
     // langsung, sama seperti EvidenceFileThumbnail di ParentScreen), cuma angka badge ini
     // yang perlu tetap "hidup" walau tab Chat sedang tidak aktif.
-    val chatUnreadTotal: Int = 0
+    val chatUnreadTotal: Int = 0,
+    // 4 pesan terakhir grup keluarga - pratinjau ringkas di Dashboard (orang tua & anak),
+    // terpisah dari thread aktif ChatScreen sendiri, sama seperti dashboardChatPreview di
+    // web/app.js. TIDAK menandai thread sebagai terbaca (murni pratinjau).
+    val dashboardChatPreview: List<ChatMessageDto> = emptyList(),
+    // Log aktivitas - HANYA terisi untuk orang tua (lihat loadActivityLog), dimuat sesuai
+    // permintaan saat Pengaturan dibuka, bukan dipoll berkala (riwayat, bukan real-time).
+    val activityLog: List<ActivityLogEntryDto> = emptyList()
 )
 
 class AppViewModel(application: Application) : AndroidViewModel(application) {
@@ -134,6 +144,25 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _state.update { it.copy(infoMessage = "Profil anak dihapus.") }
     }
 
+    /** Dipanggil dari Pengaturan saat anak lupa PIN - lihat catatan di PactioApi.resetChildPin. */
+    fun resetChildPin(childId: String, pin: String) = requireToken { token ->
+        PactioApi.resetChildPin(token, childId, pin)
+        _state.update { it.copy(infoMessage = "PIN anak berhasil diatur ulang.") }
+        loadActivityLog()
+    }
+
+    /**
+     * Dipanggil UI (ParentSettingsDialog) tiap kali bagian Log Aktivitas dibuka - sekali per
+     * pembukaan, bukan polling, konsisten dengan ensureSettingsDataLoaded di web/app.js. Diam-diam
+     * seperti silentRefresh - kegagalan jaringan sesekali tidak perlu jadi banner error yang
+     * mengganggu Pengaturan.
+     */
+    fun loadActivityLog() {
+        val token = _state.value.token ?: return
+        if (_state.value.currentUser?.role != "parent") return
+        viewModelScope.launch { runCatching { _state.update { it.copy(activityLog = PactioApi.getActivityLog(token)) } } }
+    }
+
     fun createTask(childId: String, title: String, description: String, rewardMinutes: Int) = requireToken { token ->
         PactioApi.createTask(token, childId, title, description, rewardMinutes)
         loadTasks(token)
@@ -208,6 +237,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 loadTasks(token)
                 loadBalanceIfChild(token)
                 loadChatUnread(token)
+                loadDashboardChatPreview(token)
             }
         }
     }
@@ -234,6 +264,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         loadTasks(token)
         loadBalanceIfChild(token)
         loadChatUnread(token)
+        loadDashboardChatPreview(token)
     }
 
     private suspend fun loadFamily(token: String) {
@@ -257,6 +288,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private suspend fun loadChatUnread(token: String) {
         val summary = PactioApi.getChatUnreadSummary(token)
         _state.update { it.copy(chatUnreadTotal = summary.total) }
+    }
+
+    /** 4 pesan terakhir grup keluarga, untuk pratinjau Dashboard - lihat komentar dashboardChatPreview di UiState. */
+    private suspend fun loadDashboardChatPreview(token: String) {
+        val messages = PactioApi.getChatMessages(token, FAMILY_CHAT_THREAD_ID)
+        _state.update { it.copy(dashboardChatPreview = messages.takeLast(4)) }
     }
 
     /** Menjalankan aksi yang butuh token; tidak melakukan apa pun kalau belum login. */

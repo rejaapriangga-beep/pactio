@@ -280,8 +280,63 @@ button { font-family: inherit; }
   justify-content: space-between;
   padding: 10px 0;
   border-bottom: 1px solid var(--border);
+  gap: 10px;
 }
 .settings-child-row:last-of-type { border-bottom: none; }
+.settings-child-row > span:first-child { font-weight: 600; }
+.settings-child-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+/* --- Log Aktivitas --- */
+.activity-log-list { display: flex; flex-direction: column; gap: 2px; max-height: 420px; overflow-y: auto; }
+.activity-log-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+}
+.activity-log-row:last-child { border-bottom: none; }
+.activity-log-main { min-width: 0; }
+.activity-log-actor { font-weight: 700; }
+.activity-log-role { color: var(--text-muted); font-size: 12px; }
+.activity-log-detail { color: var(--text-muted); }
+.activity-log-time { color: var(--text-muted); font-size: 12px; white-space: nowrap; flex-shrink: 0; }
+
+/* --- Dashboard: tugas belum selesai per anak --- */
+.dash-child-group { margin-top: 14px; }
+.dash-child-group:first-of-type { margin-top: 4px; }
+.dash-child-name { font-weight: 700; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+.dash-task-mini-empty { color: var(--text-muted); font-size: 13px; padding: 4px 0 2px; }
+.dash-task-mini {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--surface-alt);
+  border-radius: 10px;
+  margin-bottom: 6px;
+  cursor: pointer;
+  font-size: 14px;
+}
+.dash-task-mini .title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* --- Dashboard: pratinjau chat grup --- */
+.dash-chat-row {
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  align-items: baseline;
+}
+.dash-chat-row:last-of-type { border-bottom: none; }
+.dash-chat-sender { font-weight: 700; }
+.dash-chat-text { color: var(--text); flex: 1; min-width: 0; }
+.dash-chat-time { color: var(--text-muted); font-size: 12px; }
 
 /* --- Chat --- */
 .content-chat { display: flex; flex-direction: column; height: calc(100vh - 130px); padding-bottom: 0; }

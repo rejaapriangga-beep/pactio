@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -175,7 +176,10 @@ fun ChildScreen(
 /** Saldo akses + ringkasan singkat jumlah tugas per status, supaya anak langsung tahu status keseluruhannya begitu buka aplikasi. */
 @Composable
 private fun ChildDashboardTab(state: UiState, onGunakanWaktu: () -> Unit) {
-    Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
         AccessBalanceCard(
             balanceMinutes = state.balanceMinutes,
             approvedTaskCount = state.approvedTaskCount,
@@ -187,6 +191,42 @@ private fun ChildDashboardTab(state: UiState, onGunakanWaktu: () -> Unit) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ChildStatCard(modifier = Modifier.weight(1f), label = "Belum Dikirim", value = belumDikirim.toString())
             ChildStatCard(modifier = Modifier.weight(1f), label = "Menunggu Approval", value = menunggu.toString())
+        }
+
+        // state.tasks (anak) sudah otomatis hanya berisi tugas milik anak ini sendiri (lihat
+        // taskForUser di server.js), jadi tidak perlu filter per-anak lagi di sini seperti
+        // versi orang tua (IncompleteTasksByChildCard).
+        val incomplete = state.tasks.filter { it.status != "approved" }
+        ChildIncompleteTasksCard(incomplete)
+        DashboardChatPreviewCard(messages = state.dashboardChatPreview, currentUserId = state.currentUser?.id, children = state.children)
+    }
+}
+
+/** "Tugas belum selesai" milik anak ini sendiri - lihat renderDashboardIncompleteTasks di web/app.js (untuk orang tua, kode yang setara). */
+@Composable
+private fun ChildIncompleteTasksCard(incomplete: List<TaskDto>) {
+    Card {
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            Text("Tugas Belum Selesai", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
+            Spacer(Modifier.height(6.dp))
+            if (incomplete.isEmpty()) {
+                Text(
+                    "Semua tugas sudah selesai. Mantap!",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                incomplete.forEach { task ->
+                    Row(
+                        Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(task.title, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                        StatusChip(task.status)
+                    }
+                }
+            }
         }
     }
 }

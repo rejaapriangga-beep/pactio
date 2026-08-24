@@ -104,7 +104,13 @@ private fun PactioApp() {
                             // supaya tab utama tetap muat satu baris tanpa digulir. Sengaja di sebelah
                             // kiri "Keluar", bukan tombol refresh manual - data sudah disegarkan otomatis
                             // lewat polling berkala (lihat AppViewModel.silentRefresh di bawah).
-                            IconButton(onClick = { showSettings = true }) {
+                            IconButton(onClick = {
+                                showSettings = true
+                                // Log Aktivitas dimuat sekali tiap dialog Pengaturan dibuka (bukan
+                                // polling) - lihat catatan di AppViewModel.loadActivityLog. Tidak
+                                // berefek untuk akun anak (dialognya beda, lihat ChildSettingsDialog).
+                                if (state.currentUser?.role == "parent") viewModel.loadActivityLog()
+                            }) {
                                 Icon(Icons.Default.Settings, contentDescription = "Pengaturan")
                             }
                             TextButton(onClick = {
@@ -165,9 +171,11 @@ private fun PactioApp() {
             when (state.currentUser?.role) {
                 "parent" -> ParentSettingsDialog(
                     children = state.children,
+                    activityLog = state.activityLog,
                     loading = state.loading,
                     onAddChild = viewModel::addChild,
                     onDeleteChild = viewModel::deleteChild,
+                    onResetPin = viewModel::resetChildPin,
                     onDismiss = { showSettings = false }
                 )
                 "child" -> ChildSettingsDialog(state = state, onDismiss = { showSettings = false })

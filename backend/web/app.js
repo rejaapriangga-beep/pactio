@@ -6,8 +6,9 @@
  * (lihat serveStatic di server.js) jadi semua panggilan API di bawah pakai path relatif,
  * tidak perlu CORS.
  *
- * Cakupan: Dashboard, Daftar Tugas, Approval Tugas, Kunci Perangkat, Chat, dan Pengaturan
- * (kelola profil anak) - setara aplikasi Android untuk peran orang tua.
+ * Cakupan: Dashboard (ringkasan + tugas belum selesai per anak + pratinjau chat grup),
+ * Daftar Tugas, Approval Tugas, Kunci Perangkat, Chat, dan Pengaturan (kelola profil anak,
+ * reset PIN anak, log aktivitas) - setara aplikasi Android untuk peran orang tua.
  *
  * Login HANYA lewat email+password orang tua (POST /auth/login-parent) - akun anak (kode
  * keluarga+PIN) sengaja TIDAK didukung di sini, supaya halaman ini murni jadi kanal kontrol
@@ -50,9 +51,14 @@ const state = {
   chatUnreadTotal: 0,
   chatSending: false,
   chatError: null,
+  // Dashboard - pratinjau ringkas, terpisah dari state chat tab (chatMessages) supaya tidak
+  // saling menimpa saat dua-duanya aktif dipakai.
+  dashboardChatPreview: [],
   // Pengaturan
   showAddChild: false,
-  childPendingDeleteId: null
+  childPendingDeleteId: null,
+  childPendingResetPinId: null,
+  activityLog: []
 };
 
 function safeParse(json) {
@@ -101,6 +107,8 @@ function clearSession() {
   state.tasks = [];
   state.chatMessages = [];
   state.chatUnreadTotal = 0;
+  state.dashboardChatPreview = [];
+  state.activityLog = [];
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
 }
@@ -111,6 +119,11 @@ async function guarded(fn) {
   render();
   try {
     await fn();
+    // Semua aksi lewat guarded() (buat/putuskan tugas, kunci, kelola profil anak) berpotensi
+    // menambah entri baru di server (lihat logActivity di server.js) - paksa Log Aktivitas
+    // dimuat ulang di render berikutnya kalau sedang berada di tab Pengaturan, supaya entri
+    // barunya langsung terlihat tanpa harus pindah tab dulu.
+    lastLoadedSettingsTab = false;
   } catch (error) {
     state.errorMessage = error.message || "Terjadi kesalahan.";
   }
@@ -134,8 +147,14 @@ async function loadChatUnread() {
   state.chatUnreadTotal = result.total;
 }
 
+/** 4 pesan terakhir dari grup keluarga, untuk pratinjau di Dashboard - TIDAK menandai thread sebagai terbaca (lihat komentar di loadChatMessages), murni pratinjau. */
+async function loadDashboardChatPreview() {
+  const result = await api("GET", `/chat/${FAMILY_CHAT_THREAD_ID}/messages`);
+  state.dashboardChatPreview = result.messages.slice(-4);
+}
+
 async function refreshAll() {
-  await Promise.all([loadFamily(), loadTasks(), loadChatUnread()]);
+  await Promise.all([loadFamily(), loadTasks(), loadChatUnread(), loadDashboardChatPreview()]);
 }
 
 /**
@@ -163,7 +182,7 @@ function isTypingInField() {
 async function silentRefresh() {
   if (!state.token) return;
   try {
-    await Promise.all([loadFamily(), loadTasks(), loadChatUnread()]);
+    await Promise.all([loadFamily(), loadTasks(), loadChatUnread(), loadDashboardChatPreview()]);
     if (!isTypingInField()) render();
   } catch {
     // kegagalan sesekali (jaringan hiccup) tidak perlu ditampilkan sebagai error - dicoba lagi siklus berikutnya
@@ -202,6 +221,23 @@ function ensureChatPolling() {
       }
     }, CHAT_POLL_MS);
   }
+}
+
+// --- Log aktivitas (dimuat sekali tiap kali tab Pengaturan dibuka, bukan dipoll berkala -
+// riwayat, bukan sesuatu yang perlu real-time) --------------------------------------------
+
+let lastLoadedSettingsTab = false;
+
+function ensureSettingsDataLoaded() {
+  if (state.tab !== "settings") { lastLoadedSettingsTab = false; return; }
+  if (lastLoadedSettingsTab) return;
+  lastLoadedSettingsTab = true;
+  api("GET", "/activity-log").then((result) => {
+    state.activityLog = result.entries;
+    if (!isTypingInField()) render();
+  }).catch(() => {
+    // gagal diam-diam - Pengaturan tetap tampil tanpa riwayat, tidak menghalangi profil anak/tambah anak
+  });
 }
 
 // --- Aksi -----------------------------------------------------------------------------
@@ -265,6 +301,14 @@ async function handleAddChild(name, pin) {
     await loadFamily();
     state.showAddChild = false;
     state.infoMessage = "Profil anak berhasil ditambahkan.";
+  });
+}
+
+async function handleResetPin(childId, pin) {
+  await guarded(async () => {
+    await api("POST", `/family/children/${childId}/reset-pin`, { pin });
+    state.childPendingResetPinId = null;
+    state.infoMessage = "PIN anak berhasil diatur ulang.";
   });
 }
 
@@ -354,6 +398,7 @@ function render() {
   }
   root.appendChild(renderApp());
   ensureChatPolling();
+  ensureSettingsDataLoaded();
 }
 
 function renderLogin() {
@@ -441,6 +486,8 @@ function renderApp() {
   if (state.showAddChild) wrap.appendChild(renderAddChildModal());
   const deleteTarget = state.children.find((c) => c.id === state.childPendingDeleteId);
   if (deleteTarget) wrap.appendChild(renderDeleteChildModal(deleteTarget));
+  const resetPinTarget = state.children.find((c) => c.id === state.childPendingResetPinId);
+  if (resetPinTarget) wrap.appendChild(renderResetPinModal(resetPinTarget));
 
   return wrap;
 }
@@ -485,7 +532,84 @@ function renderDashboard() {
     <button class="btn btn-primary" id="open-create-task" ${state.children.length === 0 ? "disabled" : ""}>+ Buat Tugas</button>
   `;
   el.querySelector("#open-create-task").addEventListener("click", () => { state.showCreateTask = true; render(); });
+
+  if (state.children.length > 0) {
+    el.appendChild(renderDashboardIncompleteTasks());
+    el.appendChild(renderDashboardChatPreview());
+  }
   return el;
+}
+
+/** "Tugas belum selesai" = semua status kecuali approved (assigned/submitted/rejected masih butuh tindakan lanjutan), dipisah per anak supaya orang tua langsung tahu siapa yang masih punya PR. */
+function renderDashboardIncompleteTasks() {
+  const card = document.createElement("div");
+  card.className = "card";
+  card.innerHTML = `<h3 style="margin-top: 0;">Tugas Belum Selesai</h3>`;
+
+  state.children.forEach((child) => {
+    const incomplete = state.tasks.filter((t) => t.childId === child.id && t.status !== "approved");
+    const group = document.createElement("div");
+    group.className = "dash-child-group";
+    group.innerHTML = `<div class="dash-child-name">${escapeHtml(child.name)}${incomplete.length ? ` <span class="status-chip status-submitted">${incomplete.length}</span>` : ""}</div>`;
+
+    if (incomplete.length === 0) {
+      const hint = document.createElement("div");
+      hint.className = "dash-task-mini-empty";
+      hint.textContent = "Semua tugas sudah selesai.";
+      group.appendChild(hint);
+    } else {
+      incomplete.forEach((task) => {
+        const row = document.createElement("div");
+        row.className = "dash-task-mini";
+        row.innerHTML = `
+          <span class="title">${escapeHtml(task.title)}</span>
+          <span class="status-chip status-${task.status}">${STATUS_LABEL[task.status] || task.status}</span>
+        `;
+        row.addEventListener("click", () => { state.detailTaskId = task.id; render(); });
+        group.appendChild(row);
+      });
+    }
+    card.appendChild(group);
+  });
+
+  return card;
+}
+
+/** Pratinjau 4 pesan terakhir grup keluarga - klik kartu untuk langsung pindah ke tab Chat. */
+function renderDashboardChatPreview() {
+  const card = document.createElement("div");
+  card.className = "card";
+  card.innerHTML = `<h3 style="margin-top: 0;">Percakapan Grup Terakhir</h3>`;
+
+  if (state.dashboardChatPreview.length === 0) {
+    const hint = document.createElement("p");
+    hint.style.color = "var(--text-muted)";
+    hint.textContent = "Belum ada percakapan di grup keluarga.";
+    card.appendChild(hint);
+  } else {
+    state.dashboardChatPreview.forEach((message) => {
+      const row = document.createElement("div");
+      row.className = "dash-chat-row";
+      const senderLabel = message.senderId === state.user.id ? "Kamu" : (message.senderRole === "parent" ? "Orang Tua" : (childName(message.senderId) || "Anak"));
+      const preview = message.type === "photo" ? "📷 Foto" : (message.text || "");
+      row.innerHTML = `
+        <span class="dash-chat-sender">${escapeHtml(senderLabel)}:</span>
+        <span class="dash-chat-text">${escapeHtml(preview)}</span>
+        <span class="dash-chat-time">${escapeHtml(formatChatTime(message.createdAt))}</span>
+      `;
+      card.appendChild(row);
+    });
+  }
+
+  const openBtn = document.createElement("button");
+  openBtn.type = "button";
+  openBtn.className = "btn btn-text btn-sm";
+  openBtn.style.marginTop = "8px";
+  openBtn.textContent = "Buka Chat →";
+  openBtn.addEventListener("click", () => { state.tab = "chat"; state.chatThreadId = FAMILY_CHAT_THREAD_ID; render(); });
+  card.appendChild(openBtn);
+
+  return card;
 }
 
 function renderCreateTaskModal() {
@@ -749,7 +873,10 @@ function renderSettingsTab() {
   const el = document.createElement("div");
   const card = document.createElement("div");
   card.className = "card";
-  card.innerHTML = `<h3 style="margin-top: 0;">Profil Anak</h3>`;
+  card.innerHTML = `
+    <h3 style="margin-top: 0;">Profil Anak</h3>
+    <p style="color: var(--text-muted); font-size: 13px; margin-top: -6px;">PIN anak disimpan terenkripsi dan tidak bisa ditampilkan ulang. Kalau anak lupa PIN, gunakan "Reset PIN" untuk membuat PIN baru.</p>
+  `;
 
   if (state.children.length === 0) {
     const hint = document.createElement("p");
@@ -760,8 +887,15 @@ function renderSettingsTab() {
     state.children.forEach((child) => {
       const row = document.createElement("div");
       row.className = "settings-child-row";
-      row.innerHTML = `<span>${escapeHtml(child.name)}</span><button type="button" class="btn btn-text btn-sm">Hapus</button>`;
-      row.querySelector("button").addEventListener("click", () => { state.childPendingDeleteId = child.id; render(); });
+      row.innerHTML = `
+        <span>${escapeHtml(child.name)}</span>
+        <span class="settings-child-actions">
+          <button type="button" class="btn btn-outline btn-sm" data-action="reset-pin">Reset PIN</button>
+          <button type="button" class="btn btn-text btn-sm" data-action="delete">Hapus</button>
+        </span>
+      `;
+      row.querySelector('[data-action="reset-pin"]').addEventListener("click", () => { state.childPendingResetPinId = child.id; render(); });
+      row.querySelector('[data-action="delete"]').addEventListener("click", () => { state.childPendingDeleteId = child.id; render(); });
       card.appendChild(row);
     });
   }
@@ -775,7 +909,94 @@ function renderSettingsTab() {
   card.appendChild(addBtn);
 
   el.appendChild(card);
+  el.appendChild(renderActivityLogCard());
   return el;
+}
+
+/** Label Indonesia untuk tiap kode `action` dari GET /activity-log - server sengaja mengirim kode mentah (bukan teks siap-tampil), sama seperti STATUS_LABEL untuk status tugas. */
+const ACTIVITY_ACTION_LABEL = {
+  login: "Masuk ke akun",
+  child_added: "Menambahkan profil anak",
+  child_removed: "Menghapus profil anak",
+  child_pin_reset: "Mengatur ulang PIN anak",
+  device_locked: "Mengunci perangkat anak",
+  device_unlocked: "Membuka kunci perangkat anak",
+  task_created: "Membuat tugas baru",
+  task_submitted: "Mengirim bukti tugas",
+  task_approved: "Menyetujui tugas",
+  task_rejected: "Menolak tugas",
+  access_redeemed: "Menukar saldo menit jadi waktu akses"
+};
+
+function renderActivityLogCard() {
+  const card = document.createElement("div");
+  card.className = "card";
+  card.innerHTML = `<h3 style="margin-top: 0;">Log Aktivitas</h3>`;
+
+  if (state.activityLog.length === 0) {
+    const hint = document.createElement("p");
+    hint.style.color = "var(--text-muted)";
+    hint.textContent = "Belum ada aktivitas tercatat.";
+    card.appendChild(hint);
+  } else {
+    const list = document.createElement("div");
+    list.className = "activity-log-list";
+    state.activityLog.forEach((entry) => {
+      const row = document.createElement("div");
+      row.className = "activity-log-row";
+      const label = ACTIVITY_ACTION_LABEL[entry.action] || entry.action;
+      const roleLabel = entry.actorRole === "parent" ? "Orang Tua" : "Anak";
+      row.innerHTML = `
+        <div class="activity-log-main">
+          <span class="activity-log-actor">${escapeHtml(entry.actorName)}</span>
+          <span class="activity-log-role">(${roleLabel})</span> ${escapeHtml(label)}
+          ${entry.detail ? `<span class="activity-log-detail"> - ${escapeHtml(entry.detail)}</span>` : ""}
+        </div>
+        <div class="activity-log-time">${escapeHtml(formatActivityLogTime(entry.createdAt))}</div>
+      `;
+      list.appendChild(row);
+    });
+    card.appendChild(list);
+  }
+
+  return card;
+}
+
+function formatActivityLogTime(iso) {
+  try {
+    const d = new Date(iso);
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${pad(d.getDate())}/${pad(d.getMonth() + 1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  } catch {
+    return "";
+  }
+}
+
+function renderResetPinModal(child) {
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.innerHTML = `
+    <div class="modal">
+      <h2>Reset PIN ${escapeHtml(child.name)}</h2>
+      <p style="color: var(--text-muted);">PIN lama langsung tidak berlaku begitu PIN baru disimpan. Beri tahu PIN baru ini ke ${escapeHtml(child.name)} secara langsung.</p>
+      <form id="reset-pin-form">
+        <div class="field"><label>PIN baru (4-8 digit)</label><input type="password" name="pin" inputmode="numeric" pattern="[0-9]{4,8}" required autofocus /></div>
+        <div class="modal-close-row">
+          <button type="button" class="btn btn-text" id="cancel-reset-pin">Batal</button>
+          <button type="submit" class="btn btn-primary" ${state.loading ? "disabled" : ""}>Simpan PIN Baru</button>
+        </div>
+      </form>
+    </div>
+  `;
+  overlay.addEventListener("click", (event) => { if (event.target === overlay) { state.childPendingResetPinId = null; render(); } });
+  overlay.querySelector("#cancel-reset-pin").addEventListener("click", () => { state.childPendingResetPinId = null; render(); });
+  overlay.querySelector("#reset-pin-form").addEventListener("submit", (event) => {
+    event.preventDefault();
+    const form = new FormData(event.target);
+    const pin = String(form.get("pin") || "").replace(/\D/g, "").slice(0, 8);
+    handleResetPin(child.id, pin);
+  });
+  return overlay;
 }
 
 function renderAddChildModal() {

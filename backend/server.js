@@ -52,7 +52,7 @@ const GOOGLE_WEB_CLIENT_ID = process.env.GOOGLE_WEB_CLIENT_ID || "";
 const sessions = new Map();
 
 function initialData() {
-  return { families: [], users: [], tasks: [], sessions: [], chatMessages: [], chatReadState: {} };
+  return { families: [], users: [], tasks: [], sessions: [], chatMessages: [], chatReadState: {}, auditLog: [] };
 }
 
 function loadData() {
@@ -61,6 +61,7 @@ function loadData() {
   if (!Array.isArray(loaded.sessions)) loaded.sessions = [];
   if (!Array.isArray(loaded.chatMessages)) loaded.chatMessages = [];
   if (!loaded.chatReadState || typeof loaded.chatReadState !== "object") loaded.chatReadState = {};
+  if (!Array.isArray(loaded.auditLog)) loaded.auditLog = [];
   // Migrasi tugas lama: dulu cuma 1 foto per tugas (task.evidencePhotoType, file bernama
   // "{taskId}.{ext}"). Sekarang beberapa berkas (task.evidenceFiles[]) - foto lama dipetakan
   // jadi satu entri berid "legacy" supaya tetap bisa dibuka tanpa perlu upload ulang.
@@ -161,6 +162,37 @@ function accessBalanceFor(child) {
   const totalEarned = approved.reduce((total, task) => total + task.rewardMinutes, 0);
   const minutes = Math.max(0, totalEarned - (child.redeemedMinutesTotal || 0));
   return { minutes, approvedTaskCount: approved.length };
+}
+
+// --- Log aktivitas ------------------------------------------------------------------
+// Riwayat transparan tindakan orang tua & anak (login, kunci perangkat, tugas, profil
+// anak, dsb) - dilihat orang tua lewat menu Pengaturan. Sengaja HANYA orang tua yang
+// bisa membaca log ini (lihat GET /activity-log), bukan tersembunyi dari siapa pun -
+// anak tetap tahu semua kontrol yang berlaku padanya lewat UI masing-masing fitur,
+// log ini murni rekap riwayat untuk orang tua, konsisten dengan prinsip "semua kontrol
+// harus transparan" (bukan pengawasan diam-diam ke anak).
+const AUDIT_LOG_MAX_PER_FAMILY = 300;
+
+function logActivity(actor, action, detail = "") {
+  const entry = {
+    id: id("log"),
+    familyId: actor.familyId,
+    actorId: actor.id,
+    actorRole: actor.role,
+    actorName: actor.name,
+    action,
+    detail: String(detail || "").trim(),
+    createdAt: new Date().toISOString()
+  };
+  db.auditLog.push(entry);
+  // Simpan hanya N entri terakhir PER KELUARGA supaya data.json tidak membengkak tanpa
+  // batas seiring waktu (beda dari tugas/chat, log ini tidak pernah dihapus pengguna) -
+  // buang entri keluarga ini yang paling lama begitu melewati batas.
+  const familyEntries = db.auditLog.filter((item) => item.familyId === actor.familyId);
+  if (familyEntries.length > AUDIT_LOG_MAX_PER_FAMILY) {
+    const dropIds = new Set(familyEntries.slice(0, familyEntries.length - AUDIT_LOG_MAX_PER_FAMILY).map((item) => item.id));
+    db.auditLog = db.auditLog.filter((item) => !dropIds.has(item.id));
+  }
 }
 
 // --- Verifikasi Google Sign-In (Credential Manager di Android) ---------------------
@@ -472,7 +504,9 @@ async function route(req, res) {
     if (!user || !user.passwordHash || !verify(password, user.passwordHash)) {
       return send(res, 401, { error: "Email atau kata sandi salah." });
     }
-    return send(res, 200, { token: createSession(user), user: publicUser(user) });
+    const token = createSession(user);
+    logActivity(user, "login", "Email & kata sandi"); save();
+    return send(res, 200, { token, user: publicUser(user) });
   }
 
   if (req.method === "POST" && pathname === "/auth/google-parent") {
@@ -494,7 +528,9 @@ async function route(req, res) {
     if (user) {
       // Akun email/password yang sama sudah ada -> tautkan googleId supaya login berikutnya lebih cepat.
       if (!user.googleId) { user.googleId = googleId; save(); }
-      return send(res, 200, { token: createSession(user), user: publicUser(user) });
+      const token = createSession(user);
+      logActivity(user, "login", "Google Sign-In"); save();
+      return send(res, 200, { token, user: publicUser(user) });
     }
 
     // Belum ada akun sama sekali untuk akun Google ini -> buat keluarga baru otomatis.
@@ -520,7 +556,9 @@ async function route(req, res) {
     const family = db.families.find((item) => item.code === code);
     const user = family && db.users.find((item) => item.role === "child" && item.familyId === family.id && verify(pin, item.pinHash));
     if (!user) return send(res, 401, { error: "Kode keluarga atau PIN salah." });
-    return send(res, 200, { token: createSession(user), user: publicUser(user) });
+    const token = createSession(user);
+    logActivity(user, "login", "Kode keluarga & PIN"); save();
+    return send(res, 200, { token, user: publicUser(user) });
   }
 
   if (req.method === "POST" && pathname === "/family/children") {
@@ -530,8 +568,28 @@ async function route(req, res) {
     const pin = requireText(body.pin, "PIN", 4);
     if (!/^\d{4,8}$/.test(pin)) return send(res, 400, { error: "PIN harus 4–8 digit angka." });
     const child = { id: id("user"), familyId: parent.familyId, role: "child", name, pinHash: hash(pin) };
-    db.users.push(child); save();
+    db.users.push(child);
+    logActivity(parent, "child_added", name); save();
     return send(res, 201, { child: publicUser(child), familyCode: familyFor(parent).code });
+  }
+
+  // Reset PIN anak (mis. anak lupa PIN) - orang tua langsung menentukan PIN baru, PIN lama
+  // (di-hash, tidak pernah tersimpan/terbaca dalam bentuk asli - lihat hash()) langsung
+  // ditimpa. Semua sesi login anak ini dicabut, sama seperti hapus profil anak, supaya PIN
+  // lama yang mungkin masih "diingat" di perangkat lain langsung tidak berlaku lagi.
+  const resetPinMatch = pathname.match(/^\/family\/children\/([^/]+)\/reset-pin$/);
+  if (req.method === "POST" && resetPinMatch) {
+    const parent = auth(req, res, ["parent"]); if (!parent) return;
+    const child = db.users.find((item) => item.id === resetPinMatch[1] && item.familyId === parent.familyId && item.role === "child");
+    if (!child) return send(res, 404, { error: "Profil anak tidak ditemukan." });
+    const body = await bodyOf(req);
+    const pin = requireText(body.pin, "PIN", 4);
+    if (!/^\d{4,8}$/.test(pin)) return send(res, 400, { error: "PIN harus 4–8 digit angka." });
+    child.pinHash = hash(pin);
+    for (const [token, record] of sessions) { if (record.userId === child.id) sessions.delete(token); }
+    db.sessions = db.sessions.filter((record) => record.userId !== child.id);
+    logActivity(parent, "child_pin_reset", child.name); save();
+    return send(res, 200, { ok: true });
   }
 
   // Hapus profil anak dari Pengaturan orang tua - dibersihkan menyeluruh (bukan cuma
@@ -565,7 +623,7 @@ async function route(req, res) {
       if (record.userId === child.id) sessions.delete(token);
     }
     db.sessions = db.sessions.filter((record) => record.userId !== child.id);
-    save();
+    logActivity(parent, "child_removed", child.name); save();
     return send(res, 200, { ok: true });
   }
 
@@ -576,7 +634,8 @@ async function route(req, res) {
     if (!child) return send(res, 404, { error: "Profil anak tidak ditemukan." });
     const body = await bodyOf(req);
     if (typeof body.enabled !== "boolean") return send(res, 400, { error: "enabled harus bernilai true atau false." });
-    child.lockModeEnabled = body.enabled; save();
+    child.lockModeEnabled = body.enabled;
+    logActivity(parent, body.enabled ? "device_locked" : "device_unlocked", child.name); save();
     return send(res, 200, { child: publicUser(child) });
   }
 
@@ -626,6 +685,15 @@ async function route(req, res) {
     return send(res, 200, { family: { id: family.id, name: family.name, code: user.role === "parent" ? family.code : undefined }, children });
   }
 
+  // Log aktivitas - HANYA orang tua yang bisa membaca (lihat komentar di logActivity()).
+  // Terbaru dulu, dibatasi 100 supaya ringan (riwayat penuh tetap tersimpan di data.json
+  // sampai AUDIT_LOG_MAX_PER_FAMILY).
+  if (req.method === "GET" && pathname === "/activity-log") {
+    const parent = auth(req, res, ["parent"]); if (!parent) return;
+    const entries = db.auditLog.filter((item) => item.familyId === parent.familyId).slice(-100).reverse();
+    return send(res, 200, { entries });
+  }
+
   if (pathname === "/tasks" && req.method === "GET") {
     const user = auth(req, res); if (!user) return;
     return send(res, 200, { tasks: db.tasks.filter((task) => taskForUser(task, user)) });
@@ -641,7 +709,8 @@ async function route(req, res) {
     if (!child) return send(res, 404, { error: "Profil anak tidak ditemukan." });
     if (!Number.isInteger(rewardMinutes) || rewardMinutes < 1 || rewardMinutes > 240) return send(res, 400, { error: "Hadiah harus 1–240 menit." });
     const task = { id: id("task"), familyId: parent.familyId, childId, title, description: String(body.description || "").trim(), rewardMinutes, status: "assigned", createdAt: new Date().toISOString(), evidence: null };
-    db.tasks.push(task); save();
+    db.tasks.push(task);
+    logActivity(parent, "task_created", `${title} → ${child.name}`); save();
     return send(res, 201, { task });
   }
 
@@ -660,7 +729,8 @@ async function route(req, res) {
       try { saveEvidenceFiles(task, rawFiles); }
       catch (error) { return send(res, 400, { error: error.message }); }
     }
-    task.status = "submitted"; task.evidence = String(body.evidence || "").trim(); task.submittedAt = new Date().toISOString(); save();
+    task.status = "submitted"; task.evidence = String(body.evidence || "").trim(); task.submittedAt = new Date().toISOString();
+    logActivity(child, "task_submitted", task.title); save();
     return send(res, 200, { task });
   }
 
@@ -686,7 +756,8 @@ async function route(req, res) {
     if (task.status !== "submitted") return send(res, 409, { error: "Hanya tugas terkirim yang dapat diputuskan." });
     const body = await bodyOf(req);
     if (typeof body.approved !== "boolean") return send(res, 400, { error: "approved harus bernilai true atau false." });
-    task.status = body.approved ? "approved" : "rejected"; task.decisionNote = String(body.note || "").trim(); task.decidedAt = new Date().toISOString(); save();
+    task.status = body.approved ? "approved" : "rejected"; task.decisionNote = String(body.note || "").trim(); task.decidedAt = new Date().toISOString();
+    logActivity(parent, body.approved ? "task_approved" : "task_rejected", task.title); save();
     return send(res, 200, { task });
   }
 
@@ -710,6 +781,7 @@ async function route(req, res) {
     const base = Math.max(now, child.unlockUntil || 0);
     child.redeemedMinutesTotal = (child.redeemedMinutesTotal || 0) + minutes;
     child.unlockUntil = base + minutes * 60 * 1000;
+    logActivity(child, "access_redeemed", `${minutes} menit`);
     save();
     return send(res, 200, { ...accessBalanceFor(child), unlockUntil: child.unlockUntil });
   }

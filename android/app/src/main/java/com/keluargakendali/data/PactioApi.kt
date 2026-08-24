@@ -79,6 +79,16 @@ object PactioApi {
         request("DELETE", "/family/children/$childId", token = token, body = null)
     }
 
+    /**
+     * Reset PIN anak (mis. anak lupa PIN) - PIN lama (di-hash, tidak pernah bisa dibaca
+     * ulang oleh siapa pun termasuk orang tua sendiri) langsung ditimpa PIN baru, dan semua
+     * sesi login anak ini dicabut server. Lihat komentar di server.js.
+     */
+    suspend fun resetChildPin(token: String, childId: String, pin: String) {
+        val body = JSONObject().put("pin", pin)
+        request("POST", "/family/children/$childId/reset-pin", token = token, body = body)
+    }
+
     suspend fun getFamily(token: String): FamilyResult {
         val json = request("GET", "/family", token = token, body = null)
         val childrenArray = json.getJSONArray("children")
@@ -150,6 +160,13 @@ object PactioApi {
     /** Menandai thread ini sudah dibaca sampai sekarang - lihat badge unread di tab Chat. */
     suspend fun markChatRead(token: String, childId: String) {
         request("POST", "/chat/$childId/read", token = token, body = JSONObject())
+    }
+
+    /** Log aktivitas keluarga - HANYA bisa dipanggil orang tua (backend menolak anak). Terbaru dulu. */
+    suspend fun getActivityLog(token: String): List<ActivityLogEntryDto> {
+        val json = request("GET", "/activity-log", token = token, body = null)
+        val array = json.getJSONArray("entries")
+        return (0 until array.length()).map { array.getJSONObject(it).toActivityLogEntryDto() }
     }
 
     suspend fun getChatUnreadSummary(token: String): ChatUnreadSummary {
@@ -332,6 +349,16 @@ object PactioApi {
         text = if (has("text") && !isNull("text")) getString("text") else null,
         photoMime = if (has("photoMime") && !isNull("photoMime")) getString("photoMime") else null,
         photoAvailable = optBoolean("photoAvailable", false),
+        createdAt = getString("createdAt")
+    )
+
+    private fun JSONObject.toActivityLogEntryDto() = ActivityLogEntryDto(
+        id = getString("id"),
+        actorId = getString("actorId"),
+        actorRole = getString("actorRole"),
+        actorName = getString("actorName"),
+        action = getString("action"),
+        detail = optString("detail", ""),
         createdAt = getString("createdAt")
     )
 

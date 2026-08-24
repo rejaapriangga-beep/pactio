@@ -122,3 +122,34 @@ fun statusLabel(status: String): String = when (status) {
     "rejected" -> "Ditolak"
     else -> status
 }
+
+/**
+ * Satu entri log aktivitas (lihat GET /activity-log & logActivity() di server.js) - riwayat
+ * transparan tindakan orang tua & anak, dilihat orang tua lewat Pengaturan. `action` adalah
+ * kode mentah dari server (lihat activityActionLabel di bawah), bukan teks siap-tampil.
+ */
+data class ActivityLogEntryDto(
+    val id: String,
+    val actorId: String,
+    val actorRole: String, // "parent" atau "child"
+    val actorName: String,
+    val action: String,
+    val detail: String,
+    val createdAt: String
+)
+
+/** Label Indonesia untuk tiap kode `action` - HARUS sinkron dengan ACTIVITY_ACTION_LABEL di web/app.js. */
+fun activityActionLabel(action: String): String = when (action) {
+    "login" -> "Masuk ke akun"
+    "child_added" -> "Menambahkan profil anak"
+    "child_removed" -> "Menghapus profil anak"
+    "child_pin_reset" -> "Mengatur ulang PIN anak"
+    "device_locked" -> "Mengunci perangkat anak"
+    "device_unlocked" -> "Membuka kunci perangkat anak"
+    "task_created" -> "Membuat tugas baru"
+    "task_submitted" -> "Mengirim bukti tugas"
+    "task_approved" -> "Menyetujui tugas"
+    "task_rejected" -> "Menolak tugas"
+    "access_redeemed" -> "Menukar saldo menit jadi waktu akses"
+    else -> action
+}
