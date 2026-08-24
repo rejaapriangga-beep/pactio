@@ -21,6 +21,12 @@ data class FamilyDto(
     val code: String? = null
 )
 
+/** Satu berkas bukti (foto atau dokumen) - byte-nya diambil terpisah lewat GET /tasks/:id/evidence/:fileId. */
+data class EvidenceFileDto(
+    val id: String,
+    val mime: String // "image/jpeg" | "image/png" | "application/pdf"
+)
+
 data class TaskDto(
     val id: String,
     val familyId: String,
@@ -31,7 +37,7 @@ data class TaskDto(
     val status: String, // "assigned" | "submitted" | "approved" | "rejected"
     val createdAt: String,
     val evidence: String? = null,
-    val evidencePhotoType: String? = null, // "image/jpeg" | "image/png", null = belum ada foto bukti
+    val evidenceFiles: List<EvidenceFileDto> = emptyList(), // bisa beberapa foto/dokumen sekaligus
     val submittedAt: String? = null,
     val decisionNote: String? = null,
     val decidedAt: String? = null

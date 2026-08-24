@@ -103,21 +103,26 @@ object PactioApi {
     }
 
     /**
-     * evidencePhotoDataUri (opsional): data URI base64 "data:image/jpeg;base64,...." atau
-     * "data:image/png;base64,....". Backend memvalidasi isi filenya lewat magic bytes,
-     * bukan cuma percaya string mime ini.
+     * evidenceFiles (opsional): daftar data URI base64, mis. "data:image/jpeg;base64,....",
+     * "data:image/png;base64,....", atau "data:application/pdf;base64,....". Backend
+     * memvalidasi isi tiap berkas lewat magic bytes, bukan cuma percaya string mime ini,
+     * dan membatasi jumlah maksimal berkas per pengiriman.
      */
-    suspend fun submitTask(token: String, taskId: String, evidence: String, evidencePhotoDataUri: String? = null): TaskDto {
+    suspend fun submitTask(token: String, taskId: String, evidence: String, evidenceFiles: List<String> = emptyList()): TaskDto {
         val body = JSONObject().put("evidence", evidence)
-        if (evidencePhotoDataUri != null) body.put("evidencePhoto", evidencePhotoDataUri)
+        if (evidenceFiles.isNotEmpty()) {
+            val array = org.json.JSONArray()
+            evidenceFiles.forEach { array.put(it) }
+            body.put("evidenceFiles", array)
+        }
         val json = request("POST", "/tasks/${taskId}/submit", token = token, body = body)
         return json.getJSONObject("task").toTaskDto()
     }
 
-    /** Mengambil byte mentah foto bukti tugas (dipanggil hanya kalau task.evidencePhotoType != null). */
-    suspend fun getTaskPhotoBytes(token: String, taskId: String): ByteArray = withContext(Dispatchers.IO) {
+    /** Mengambil byte mentah satu berkas bukti tugas (foto/dokumen) lewat id-nya. */
+    suspend fun getEvidenceFileBytes(token: String, taskId: String, fileId: String): ByteArray = withContext(Dispatchers.IO) {
         val connection = try {
-            URL(BASE_URL + "/tasks/$taskId/photo").openConnection() as HttpsURLConnection
+            URL(BASE_URL + "/tasks/$taskId/evidence/$fileId").openConnection() as HttpsURLConnection
         } catch (error: IOException) {
             throw ApiException.Network("Tidak dapat menghubungi server: ${error.message}")
         }
@@ -132,7 +137,7 @@ object PactioApi {
                 val errorBody = readStream(connection.errorStream)
                 val json = if (errorBody.isBlank()) JSONObject() else parseJsonObject(errorBody)
                 if (status == 401) throw ApiException.Unauthorized(json.optString("error", "Sesi tidak valid, silakan masuk kembali."))
-                throw ApiException.Http(status, json.optString("error", "Gagal memuat foto (HTTP $status)."))
+                throw ApiException.Http(status, json.optString("error", "Gagal memuat berkas bukti (HTTP $status)."))
             }
             connection.inputStream.use { it.readBytes() }
         } catch (error: ApiException) {
@@ -264,7 +269,12 @@ object PactioApi {
         status = getString("status"),
         createdAt = getString("createdAt"),
         evidence = if (has("evidence") && !isNull("evidence")) getString("evidence") else null,
-        evidencePhotoType = if (has("evidencePhotoType") && !isNull("evidencePhotoType")) getString("evidencePhotoType") else null,
+        evidenceFiles = optJSONArray("evidenceFiles")?.let { array ->
+            (0 until array.length()).map { index ->
+                val file = array.getJSONObject(index)
+                EvidenceFileDto(id = file.getString("id"), mime = file.getString("mime"))
+            }
+        } ?: emptyList(),
         submittedAt = if (has("submittedAt") && !isNull("submittedAt")) getString("submittedAt") else null,
         decisionNote = if (has("decisionNote") && !isNull("decisionNote")) getString("decisionNote") else null,
         decidedAt = if (has("decidedAt") && !isNull("decidedAt")) getString("decidedAt") else null

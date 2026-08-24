@@ -40,5 +40,23 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Memantau aplikasi yang sedang dibuka anak untuk menegakkan kunci perangkat yang diaktifkan orang tua." />
         </service>
+
+        <!--
+            Dibutuhkan supaya orang tua bisa membuka berkas bukti PDF yang diunduh dari server
+            (di cache app) lewat aplikasi pembaca PDF yang sudah ada di HP - Android 7+ tidak
+            lagi mengizinkan berbagi URI file:// langsung antar aplikasi, harus lewat
+            content:// resmi seperti ini. exported="false" + grantUriPermissions="true": hanya
+            aplikasi yang benar-benar diberi izin lewat Intent (mis. pembaca PDF yang dipilih
+            pengguna) yang bisa membaca berkasnya, bukan aplikasi lain sembarangan.
+        -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 </manifest>

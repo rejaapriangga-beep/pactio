@@ -135,8 +135,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _state.update { it.copy(infoMessage = "Tugas berhasil dibuat.") }
     }
 
-    fun submitTask(taskId: String, evidence: String, evidencePhotoDataUri: String? = null) = requireToken { token ->
-        PactioApi.submitTask(token, taskId, evidence, evidencePhotoDataUri)
+    fun submitTask(taskId: String, evidence: String, evidenceFiles: List<String> = emptyList()) = requireToken { token ->
+        PactioApi.submitTask(token, taskId, evidence, evidenceFiles)
         loadTasks(token)
         loadBalanceIfChild(token)
         _state.update { it.copy(infoMessage = "Tugas berhasil dikirim, menunggu persetujuan orang tua.") }

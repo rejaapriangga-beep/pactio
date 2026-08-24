@@ -1,6 +1,10 @@
 package com.keluargakendali.ui
 
+import android.content.Context
+import android.content.Intent
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -14,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -22,6 +27,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Settings
@@ -36,7 +43,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -58,13 +64,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
+import com.keluargakendali.data.EvidenceFileDto
 import com.keluargakendali.data.PactioApi
 import com.keluargakendali.data.TaskDto
 import com.keluargakendali.data.UserDto
 import com.keluargakendali.data.statusLabel
+import java.io.File
 
 @Composable
 fun ParentScreen(
@@ -81,6 +92,7 @@ fun ParentScreen(
     var lockSectionExpanded by remember { mutableStateOf(false) }
     var statusFilter by remember { mutableStateOf<String?>(null) }
     var childFilter by remember { mutableStateOf<String?>(null) }
+    var detailTask by remember { mutableStateOf<TaskDto?>(null) }
 
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         state.errorMessage?.let {
@@ -178,12 +190,26 @@ fun ParentScreen(
         if (filteredTasks.isEmpty()) {
             Text("Tidak ada tugas yang cocok dengan filter.", color = MaterialTheme.colorScheme.onSurfaceVariant)
         } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 items(filteredTasks, key = { it.id }) { task ->
-                    TaskSummaryCard(task = task, childName = state.children.find { it.id == task.childId }?.name)
+                    TaskSummaryCard(
+                        task = task,
+                        childName = state.children.find { it.id == task.childId }?.name,
+                        onClick = { detailTask = task }
+                    )
                 }
             }
         }
+    }
+
+    val currentDetailTask = detailTask
+    if (currentDetailTask != null) {
+        TaskDetailDialog(
+            task = currentDetailTask,
+            childName = state.children.find { it.id == currentDetailTask.childId }?.name,
+            token = state.token,
+            onDismiss = { detailTask = null }
+        )
     }
 
     if (showSettings) {
@@ -221,9 +247,9 @@ private fun WaitingTaskCard(task: TaskDto, childName: String?, token: String?, l
                 Spacer(Modifier.height(6.dp))
                 Text("Bukti: ${task.evidence}", style = MaterialTheme.typography.bodyMedium)
             }
-            if (task.evidencePhotoType != null && token != null) {
+            if (task.evidenceFiles.isNotEmpty() && token != null) {
                 Spacer(Modifier.height(8.dp))
-                EvidencePhotoThumbnail(token = token, taskId = task.id)
+                EvidenceGallery(token = token, task = task)
             }
             Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -243,33 +269,115 @@ private fun WaitingTaskCard(task: TaskDto, childName: String?, token: String?, l
     }
 }
 
-/** Mengambil & menampilkan foto bukti tugas lewat panggilan terautentikasi ke backend. */
+/**
+ * Galeri kecil semua berkas bukti satu tugas (bisa campuran foto & PDF) - dipakai baik di
+ * kartu "Menunggu persetujuan" maupun di TaskDetailDialog. Tiap berkas diambil terpisah lewat
+ * GET /tasks/:id/evidence/:fileId (lihat PactioApi.getEvidenceFileBytes).
+ */
 @Composable
-private fun EvidencePhotoThumbnail(token: String, taskId: String) {
-    var bitmap by remember(taskId) { mutableStateOf<android.graphics.Bitmap?>(null) }
-    var failed by remember(taskId) { mutableStateOf(false) }
+private fun EvidenceGallery(token: String, task: TaskDto, thumbnailSize: Dp = 72.dp) {
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        task.evidenceFiles.forEach { file ->
+            EvidenceFileThumbnail(token = token, taskId = task.id, file = file, size = thumbnailSize)
+        }
+    }
+}
 
-    LaunchedEffect(taskId) {
+/**
+ * Satu berkas bukti: foto ditampilkan sebagai pratinjau langsung (bisa diklik untuk pratinjau
+ * penuh layar); dokumen PDF ditampilkan sebagai ikon (diklik -> diunduh ke cache lalu dibuka
+ * lewat aplikasi pembaca PDF eksternal yang sudah terpasang di HP, via FileProvider - lihat
+ * openPdfExternally & AndroidManifest.xml).
+ */
+@Composable
+private fun EvidenceFileThumbnail(token: String, taskId: String, file: EvidenceFileDto, size: Dp) {
+    val context = LocalContext.current
+    var bytes by remember(file.id) { mutableStateOf<ByteArray?>(null) }
+    var failed by remember(file.id) { mutableStateOf(false) }
+    var showPreview by remember(file.id) { mutableStateOf(false) }
+
+    LaunchedEffect(file.id) {
         try {
-            val bytes = PactioApi.getTaskPhotoBytes(token, taskId)
-            bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+            bytes = PactioApi.getEvidenceFileBytes(token, taskId, file.id)
         } catch (error: Exception) {
             failed = true
         }
     }
 
-    val currentBitmap = bitmap
-    when {
-        currentBitmap != null -> Image(
-            bitmap = currentBitmap.asImageBitmap(),
-            contentDescription = "Foto bukti tugas",
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxWidth().height(180.dp).clip(RoundedCornerShape(12.dp))
-        )
-        failed -> Text("Gagal memuat foto bukti.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-        else -> Box(Modifier.fillMaxWidth().height(180.dp), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator()
+    val isPdf = file.mime == "application/pdf"
+    val currentBytes = bytes
+    val bitmap = remember(file.id, currentBytes) {
+        if (currentBytes != null && !isPdf) BitmapFactory.decodeByteArray(currentBytes, 0, currentBytes.size) else null
+    }
+
+    Box(
+        modifier = Modifier
+            .size(size)
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.secondaryContainer)
+            .clickable(enabled = currentBytes != null) {
+                if (isPdf) openPdfExternally(context, currentBytes!!, file.id) else showPreview = true
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        when {
+            bitmap != null -> Image(
+                bitmap = bitmap.asImageBitmap(),
+                contentDescription = "Foto bukti tugas",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+            currentBytes != null && isPdf -> Icon(Icons.Default.Description, contentDescription = "Dokumen PDF bukti tugas")
+            failed -> Icon(Icons.Default.ErrorOutline, contentDescription = "Gagal memuat", tint = MaterialTheme.colorScheme.error)
+            else -> CircularProgressIndicator(modifier = Modifier.size(20.dp))
         }
+    }
+
+    if (showPreview && bitmap != null) {
+        ImagePreviewDialog(bitmap = bitmap, onDismiss = { showPreview = false })
+    }
+}
+
+/** Pratinjau foto bukti tugas dalam ukuran penuh, dibuka dari EvidenceFileThumbnail. */
+@Composable
+private fun ImagePreviewDialog(bitmap: Bitmap, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        text = {
+            Image(
+                bitmap = bitmap.asImageBitmap(),
+                contentDescription = "Pratinjau foto bukti",
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Tutup") } }
+    )
+}
+
+/**
+ * Menyimpan berkas PDF ke cache/evidence/ lalu membukanya lewat aplikasi pembaca PDF eksternal
+ * yang sudah terpasang di HP - via content:// resmi (FileProvider), bukan file:// langsung
+ * (diblokir sejak Android 7+). Kalau tidak ada aplikasi pembaca PDF, tampilkan pesan singkat
+ * alih-alih membiarkan aplikasi crash.
+ */
+private fun openPdfExternally(context: Context, bytes: ByteArray, fileId: String) {
+    try {
+        val cacheDir = File(context.cacheDir, "evidence").apply { mkdirs() }
+        val file = File(cacheDir, "$fileId.pdf")
+        file.writeBytes(bytes)
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, "application/pdf")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        context.startActivity(intent)
+    } catch (error: Exception) {
+        Toast.makeText(context, "Tidak ada aplikasi pembaca PDF di HP ini.", Toast.LENGTH_SHORT).show()
     }
 }
 
@@ -301,18 +409,60 @@ private fun RejectTaskDialog(taskTitle: String, loading: Boolean, onDismiss: () 
     )
 }
 
+/**
+ * Baris ringkas satu tugas di daftar "Semua Tugas" - sengaja dibuat pendek (cuma judul +
+ * satu baris info), diklik untuk membuka TaskDetailDialog berisi detail lengkap & bukti.
+ */
 @Composable
-private fun TaskSummaryCard(task: TaskDto, childName: String?) {
-    Card {
-        Column(Modifier.fillMaxWidth().padding(16.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(task.title, fontWeight = FontWeight.Bold)
-                StatusChip(task.status)
+private fun TaskSummaryCard(task: TaskDto, childName: String?, onClick: () -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(task.title, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    (if (childName != null) "$childName · " else "") + "${task.rewardMinutes} menit",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
-            if (childName != null) Text("Anak: $childName", style = MaterialTheme.typography.bodySmall)
-            Text("Hadiah: ${task.rewardMinutes} menit akses", color = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.width(8.dp))
+            StatusChip(task.status)
         }
     }
+}
+
+/** Popup detail lengkap satu tugas, dibuka dari TaskSummaryCard - termasuk galeri bukti. */
+@Composable
+private fun TaskDetailDialog(task: TaskDto, childName: String?, token: String?, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(task.title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                StatusChip(task.status)
+                if (childName != null) Text("Anak: $childName", style = MaterialTheme.typography.bodySmall)
+                Text("Hadiah: ${task.rewardMinutes} menit akses", color = MaterialTheme.colorScheme.primary)
+                if (task.description.isNotBlank()) {
+                    Text(task.description, style = MaterialTheme.typography.bodyMedium)
+                }
+                if (!task.evidence.isNullOrBlank()) {
+                    Text("Bukti (teks): ${task.evidence}", style = MaterialTheme.typography.bodyMedium)
+                }
+                if (task.evidenceFiles.isNotEmpty() && token != null) {
+                    Text("Berkas bukti:", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                    EvidenceGallery(token = token, task = task, thumbnailSize = 88.dp)
+                }
+                if (task.status == "rejected" && !task.decisionNote.isNullOrBlank()) {
+                    Text("Catatan orang tua: ${task.decisionNote}", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Tutup") } }
+    )
 }
 
 /**
@@ -373,11 +523,10 @@ private fun LockSection(
 }
 
 /**
- * Filter "Semua tugas": status selalu tampil, filter anak hanya muncul kalau ada lebih
- * dari satu profil anak (percuma memfilter kalau cuma satu). Sengaja bisa digulir
- * horizontal (bukan wrap) supaya tetap ringkas di layar sempit.
+ * Filter "Semua tugas": dua dropdown berdampingan (anak & status), bukan baris chip yang
+ * digulir - lebih ringkas di layar sempit. Dropdown anak hanya muncul kalau ada lebih dari
+ * satu profil anak (percuma memfilter kalau cuma satu).
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun TaskFilterRow(
     children: List<UserDto>,
@@ -388,25 +537,49 @@ private fun TaskFilterRow(
 ) {
     val statuses = listOf("assigned", "submitted", "approved", "rejected")
 
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         if (children.size > 1) {
-            Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                FilterChip(selected = selectedChildId == null, onClick = { onSelectChild(null) }, label = { Text("Semua Anak") })
-                children.forEach { child ->
-                    FilterChip(selected = selectedChildId == child.id, onClick = { onSelectChild(child.id) }, label = { Text(child.name) })
-                }
-            }
+            FilterDropdown(
+                modifier = Modifier.weight(1f),
+                label = "Anak",
+                selectedLabel = children.find { it.id == selectedChildId }?.name ?: "Semua Anak",
+                options = listOf<Pair<String?, String>>(null to "Semua Anak") + children.map { it.id to it.name },
+                onSelect = onSelectChild
+            )
         }
-        Row(
-            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            FilterChip(selected = selectedStatus == null, onClick = { onSelectStatus(null) }, label = { Text("Semua Status") })
-            statuses.forEach { status ->
-                FilterChip(selected = selectedStatus == status, onClick = { onSelectStatus(status) }, label = { Text(statusLabel(status)) })
+        FilterDropdown(
+            modifier = Modifier.weight(1f),
+            label = "Status",
+            selectedLabel = selectedStatus?.let { statusLabel(it) } ?: "Semua Status",
+            options = listOf<Pair<String?, String>>(null to "Semua Status") + statuses.map { it to statusLabel(it) },
+            onSelect = onSelectStatus
+        )
+    }
+}
+
+/** Satu dropdown filter (Material3 ExposedDropdownMenuBox, read-only text field). */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun FilterDropdown(
+    modifier: Modifier = Modifier,
+    label: String,
+    selectedLabel: String,
+    options: List<Pair<String?, String>>,
+    onSelect: (String?) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }, modifier = modifier) {
+        OutlinedTextField(
+            value = selectedLabel,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(label) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable)
+        )
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            options.forEach { (value, optionLabel) ->
+                DropdownMenuItem(text = { Text(optionLabel) }, onClick = { onSelect(value); expanded = false })
             }
         }
     }

@@ -129,7 +129,7 @@ private fun PactioApp() {
 
                     else -> ChildScreen(
                         state = state,
-                        onSubmitTask = { taskId, evidence, photo -> viewModel.submitTask(taskId, evidence, photo) },
+                        onSubmitTask = { taskId, evidence, files -> viewModel.submitTask(taskId, evidence, files) },
                         onRedeemBalance = { minutes -> viewModel.redeemAccessBalance(minutes) },
                         onDismissMessage = viewModel::dismissMessages
                     )

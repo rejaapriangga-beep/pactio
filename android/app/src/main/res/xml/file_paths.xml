@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Dipakai oleh provider androidx.core.content.FileProvider (lihat AndroidManifest.xml) -
+    hanya folder cache/evidence/ yang diekspos, tempat berkas PDF bukti tugas diunduh
+    sementara sebelum dibuka lewat aplikasi pembaca PDF eksternal.
+-->
+<paths>
+    <cache-path name="evidence_cache" path="evidence/" />
+</paths>

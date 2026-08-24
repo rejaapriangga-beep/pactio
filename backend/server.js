@@ -6,12 +6,15 @@ const path = require("path");
 
 const PORT = Number(process.env.PORT || 3030);
 const DATA_FILE = process.env.DATA_FILE || path.join(__dirname, "data.json");
-// Foto bukti tugas disimpan sebagai file biasa (bukan di data.json) supaya JSON db tidak
-// membengkak. Ditaruh di folder yang sama dengan DATA_FILE, jadi otomatis ikut ke volume
-// Docker yang sama (lihat docker-compose.yml) tanpa perlu konfigurasi tambahan.
+// Berkas bukti tugas (foto/dokumen) disimpan sebagai file biasa (bukan di data.json) supaya
+// JSON db tidak membengkak. Ditaruh di folder yang sama dengan DATA_FILE, jadi otomatis ikut
+// ke volume Docker yang sama (lihat docker-compose.yml) tanpa perlu konfigurasi tambahan.
+// Nama folder "photos" dipertahankan (bukan cuma foto lagi sejak dukungan PDF) supaya berkas
+// lama dari sebelum perubahan ini tetap ditemukan tanpa perlu migrasi folder.
 const PHOTOS_DIR = path.join(path.dirname(DATA_FILE), "photos");
 fs.mkdirSync(PHOTOS_DIR, { recursive: true });
-const MAX_PHOTO_BYTES = 5 * 1024 * 1024; // 5MB
+const MAX_EVIDENCE_FILE_BYTES = 5 * 1024 * 1024; // 5MB per berkas
+const MAX_EVIDENCE_FILES = 5; // per pengiriman tugas
 // Client ID OAuth tipe "Web application" dari Google Cloud Console. Ini BUKAN rahasia
 // (Client ID memang publik, sama seperti yang dibundel di aplikasi Android) — dipakai
 // di sini hanya untuk memeriksa klaim "aud" pada token ID Google. Kalau kosong, endpoint
@@ -33,6 +36,14 @@ function loadData() {
   if (!fs.existsSync(DATA_FILE)) return initialData();
   const loaded = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
   if (!Array.isArray(loaded.sessions)) loaded.sessions = [];
+  // Migrasi tugas lama: dulu cuma 1 foto per tugas (task.evidencePhotoType, file bernama
+  // "{taskId}.{ext}"). Sekarang beberapa berkas (task.evidenceFiles[]) - foto lama dipetakan
+  // jadi satu entri berid "legacy" supaya tetap bisa dibuka tanpa perlu upload ulang.
+  for (const task of loaded.tasks || []) {
+    if (!Array.isArray(task.evidenceFiles)) {
+      task.evidenceFiles = task.evidencePhotoType ? [{ id: "legacy", mime: task.evidencePhotoType }] : [];
+    }
+  }
   return loaded;
 }
 
@@ -209,37 +220,53 @@ function taskForUser(task, user) {
 
 const JPEG_MAGIC = Buffer.from([0xff, 0xd8, 0xff]);
 const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const PDF_MAGIC = Buffer.from("%PDF");
+const EVIDENCE_MIME_EXT = { "image/jpeg": "jpg", "image/png": "png", "application/pdf": "pdf" };
 
-// Menerima foto bukti sebagai data URI base64 (bukan multipart) - paling sederhana dengan
+// Menerima berkas bukti sebagai data URI base64 (bukan multipart) - paling sederhana dengan
 // http bawaan Node tanpa dependency parsing multipart eksternal. Isi file diverifikasi lewat
 // magic bytes, BUKAN cuma percaya field mime dari klien, supaya tidak bisa dipakai menyimpan
-// file sembarangan mengaku sebagai foto.
-function validatePhoto(dataUri) {
-  const match = /^data:(image\/jpeg|image\/png);base64,([A-Za-z0-9+/=]+)$/.exec(String(dataUri || ""));
-  if (!match) throw new Error("Format foto tidak valid (harus JPEG atau PNG).");
+// file sembarangan mengaku sebagai foto/dokumen.
+function validateEvidenceFile(dataUri) {
+  const match = /^data:([a-zA-Z0-9.+-]+\/[a-zA-Z0-9.+-]+);base64,([A-Za-z0-9+/=]+)$/.exec(String(dataUri || ""));
+  if (!match) throw new Error("Format berkas bukti tidak valid.");
   const [, mime, base64] = match;
+  const ext = EVIDENCE_MIME_EXT[mime];
+  if (!ext) throw new Error(`Jenis berkas "${mime}" tidak didukung (harus JPEG, PNG, atau PDF).`);
   const buffer = Buffer.from(base64, "base64");
-  if (buffer.length === 0 || buffer.length > MAX_PHOTO_BYTES) throw new Error("Ukuran foto tidak valid (maksimal 5MB).");
-  const magicOk = mime === "image/jpeg"
-    ? buffer.subarray(0, 3).equals(JPEG_MAGIC)
-    : buffer.subarray(0, 8).equals(PNG_MAGIC);
-  if (!magicOk) throw new Error("Isi file tidak cocok dengan tipe foto yang dinyatakan.");
-  return { buffer, mime, ext: mime === "image/jpeg" ? "jpg" : "png" };
+  if (buffer.length === 0 || buffer.length > MAX_EVIDENCE_FILE_BYTES) throw new Error("Ukuran berkas tidak valid (maksimal 5MB per berkas).");
+  const magicOk = mime === "image/jpeg" ? buffer.subarray(0, 3).equals(JPEG_MAGIC)
+    : mime === "image/png" ? buffer.subarray(0, 8).equals(PNG_MAGIC)
+    : buffer.subarray(0, 4).equals(PDF_MAGIC);
+  if (!magicOk) throw new Error("Isi berkas tidak cocok dengan jenis yang dinyatakan.");
+  return { buffer, mime, ext };
 }
 
-function photoPath(task, ext) {
-  return path.join(PHOTOS_DIR, `${task.id}.${ext}`);
+function evidenceFilePath(task, fileId, ext) {
+  // "legacy" = foto tunggal dari sebelum dukungan multi-berkas (lihat migrasi di loadData),
+  // pola nama filenya beda (tanpa id) - dipertahankan supaya berkas lama tetap terbaca.
+  return path.join(PHOTOS_DIR, fileId === "legacy" ? `${task.id}.${ext}` : `${task.id}_${fileId}.${ext}`);
 }
 
-function savePhoto(task, dataUri) {
-  const photo = validatePhoto(dataUri);
-  // Hapus foto lama kalau ekstensinya beda (mis. resubmit dari JPEG ke PNG) supaya tidak menumpuk file yatim.
-  for (const ext of ["jpg", "png"]) {
-    const oldPath = photoPath(task, ext);
-    if (ext !== photo.ext && fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+function deleteEvidenceFiles(task) {
+  for (const file of task.evidenceFiles || []) {
+    const ext = EVIDENCE_MIME_EXT[file.mime];
+    if (!ext) continue;
+    const filePath = evidenceFilePath(task, file.id, ext);
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
   }
-  fs.writeFileSync(photoPath(task, photo.ext), photo.buffer);
-  task.evidencePhotoType = photo.mime;
+  task.evidenceFiles = [];
+}
+
+/** Validasi SEMUA berkas dulu sebelum menulis apa pun - gagal satu, tidak ada yang tersimpan setengah. */
+function saveEvidenceFiles(task, dataUris) {
+  const validated = dataUris.map(validateEvidenceFile);
+  deleteEvidenceFiles(task);
+  task.evidenceFiles = validated.map((file) => {
+    const fileId = crypto.randomBytes(8).toString("hex");
+    fs.writeFileSync(evidenceFilePath(task, fileId, file.ext), file.buffer);
+    return { id: fileId, mime: file.mime };
+  });
 }
 
 async function route(req, res) {
@@ -345,10 +372,7 @@ async function route(req, res) {
     if (!child) return send(res, 404, { error: "Profil anak tidak ditemukan." });
 
     for (const task of db.tasks.filter((item) => item.childId === child.id)) {
-      for (const ext of ["jpg", "png"]) {
-        const filePath = photoPath(task, ext);
-        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-      }
+      deleteEvidenceFiles(task);
     }
     db.tasks = db.tasks.filter((item) => item.childId !== child.id);
     db.users = db.users.filter((item) => item.id !== child.id);
@@ -443,24 +467,29 @@ async function route(req, res) {
     if (!task) return send(res, 404, { error: "Tugas tidak ditemukan." });
     if (task.status !== "assigned" && task.status !== "rejected") return send(res, 409, { error: "Tugas tidak dapat dikirim pada status ini." });
     const body = await bodyOf(req);
-    if (body.evidencePhoto) {
-      try { savePhoto(task, body.evidencePhoto); }
+    // evidenceFiles (baru, array data URI - beberapa berkas) diutamakan; evidencePhoto
+    // (lama, satu berkas) tetap didukung sebagai fallback selama masa transisi klien.
+    const rawFiles = Array.isArray(body.evidenceFiles) ? body.evidenceFiles : (body.evidencePhoto ? [body.evidencePhoto] : []);
+    if (rawFiles.length > MAX_EVIDENCE_FILES) return send(res, 400, { error: `Maksimal ${MAX_EVIDENCE_FILES} berkas bukti.` });
+    if (rawFiles.length > 0) {
+      try { saveEvidenceFiles(task, rawFiles); }
       catch (error) { return send(res, 400, { error: error.message }); }
     }
     task.status = "submitted"; task.evidence = String(body.evidence || "").trim(); task.submittedAt = new Date().toISOString(); save();
     return send(res, 200, { task });
   }
 
-  const photoMatch = pathname.match(/^\/tasks\/([^/]+)\/photo$/);
-  if (req.method === "GET" && photoMatch) {
+  const evidenceMatch = pathname.match(/^\/tasks\/([^/]+)\/evidence\/([^/]+)$/);
+  if (req.method === "GET" && evidenceMatch) {
     const user = auth(req, res); if (!user) return;
-    const task = db.tasks.find((item) => item.id === photoMatch[1] && taskForUser(item, user));
-    if (!task || !task.evidencePhotoType) return send(res, 404, { error: "Foto tidak ditemukan." });
-    const ext = task.evidencePhotoType === "image/jpeg" ? "jpg" : "png";
-    const filePath = photoPath(task, ext);
-    if (!fs.existsSync(filePath)) return send(res, 404, { error: "Foto tidak ditemukan." });
+    const task = db.tasks.find((item) => item.id === evidenceMatch[1] && taskForUser(item, user));
+    if (!task) return send(res, 404, { error: "Tugas tidak ditemukan." });
+    const file = (task.evidenceFiles || []).find((item) => item.id === evidenceMatch[2]);
+    if (!file) return send(res, 404, { error: "Berkas bukti tidak ditemukan." });
+    const filePath = evidenceFilePath(task, file.id, EVIDENCE_MIME_EXT[file.mime]);
+    if (!fs.existsSync(filePath)) return send(res, 404, { error: "Berkas bukti tidak ditemukan." });
     const buffer = fs.readFileSync(filePath);
-    res.writeHead(200, { "Content-Type": task.evidencePhotoType, "Content-Length": buffer.length, "Cache-Control": "private, max-age=86400" });
+    res.writeHead(200, { "Content-Type": file.mime, "Content-Length": buffer.length, "Cache-Control": "private, max-age=86400" });
     return res.end(buffer);
   }
 
