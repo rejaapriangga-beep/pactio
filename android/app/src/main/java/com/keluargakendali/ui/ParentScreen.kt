@@ -90,6 +90,7 @@ import com.keluargakendali.data.TaskDto
 import com.keluargakendali.data.UserDto
 import com.keluargakendali.data.activityActionLabel
 import com.keluargakendali.data.statusLabel
+import com.keluargakendali.ui.theme.PactioSwitchTrackOff
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -914,7 +915,12 @@ private fun ParentLockTab(children: List<UserDto>, loading: Boolean, onSetLock: 
                             // dengan perubahan warna toggle di web/app.css.
                             colors = SwitchDefaults.colors(
                                 checkedTrackColor = MaterialTheme.colorScheme.error,
-                                checkedThumbColor = MaterialTheme.colorScheme.onError
+                                checkedThumbColor = MaterialTheme.colorScheme.onError,
+                                // Track "off" bawaan (outline pucat, sama dengan garis tepi kartu)
+                                // nyaris tidak kelihatan di atas latar krem - lihat PactioSwitchTrackOff.
+                                uncheckedTrackColor = PactioSwitchTrackOff,
+                                uncheckedBorderColor = PactioSwitchTrackOff,
+                                uncheckedThumbColor = MaterialTheme.colorScheme.surface
                             )
                         )
                     }

@@ -29,3 +29,11 @@ val PactioGreenSoft = Color(0xFFE1F3E7)
 val PactioRed = Color(0xFFC94A3D)
 val PactioRedOn = Color(0xFF7A2A22)
 val PactioRedSoft = Color(0xFFFBE4E1)
+
+/**
+ * Track saklar (Switch) saat NONAKTIF - lebih gelap dari PactioBorder yang biasa dipakai untuk
+ * garis tepi kartu (border kartu memang sengaja tipis/pucat, tapi kalau dipakai juga untuk track
+ * saklar, saklar itu jadi nyaris tidak kelihatan di atas PactioBackground yang senada). Sama
+ * dengan warna track "off" di web/app.css (.switch-slider).
+ */
+val PactioSwitchTrackOff = Color(0xFFD9C6B2)
