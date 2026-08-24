@@ -10,7 +10,7 @@ import java.nio.charset.StandardCharsets
 import javax.net.ssl.HttpsURLConnection
 
 /**
- * Klien HTTP sederhana untuk API Pactio. Sengaja tidak memakai Retrofit/OkHttp/Gson —
+ * Klien HTTP sederhana untuk API TimeCraft. Sengaja tidak memakai Retrofit/OkHttp/Gson —
  * backend tidak memakai dependency eksternal, jadi Android juga dijaga tetap ringan
  * memakai HttpsURLConnection (bawaan platform) dan org.json (bawaan Android SDK).
  *
@@ -19,7 +19,7 @@ import javax.net.ssl.HttpsURLConnection
  */
 object PactioApi {
 
-    private const val BASE_URL = "https://api.patio.my.id"
+    private const val BASE_URL = "https://timecraft.my.id"
     private const val TIMEOUT_MS = 15_000
 
     suspend fun health(): Boolean = runCatching {

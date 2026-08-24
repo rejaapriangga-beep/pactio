@@ -139,14 +139,14 @@ class DeviceLockService : Service() {
                     gravity = Gravity.CENTER
                 })
                 addView(TextView(context).apply {
-                    text = "Orang tua sedang mengaktifkan mode kunci. Buka Pactio untuk melihat tugas dan saldo hadiahmu."
+                    text = "Orang tua sedang mengaktifkan mode kunci. Buka TimeCraft untuk melihat tugas dan saldo hadiahmu."
                     setTextColor(Color.WHITE)
                     textSize = 15f
                     gravity = Gravity.CENTER
                     setPadding(0, 32, 0, 32)
                 })
                 addView(Button(context).apply {
-                    text = "Buka Pactio"
+                    text = "Buka TimeCraft"
                     setOnClickListener {
                         packageManager.getLaunchIntentForPackage(packageName)?.let {
                             it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -186,7 +186,7 @@ class DeviceLockService : Service() {
         val channel = NotificationChannel(CHANNEL_ID, "Kontrol Perangkat", NotificationManager.IMPORTANCE_LOW)
         (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(channel)
         return Notification.Builder(this, CHANNEL_ID)
-            .setContentTitle("Pactio - Kontrol Perangkat aktif")
+            .setContentTitle("TimeCraft - Kontrol Perangkat aktif")
             .setContentText("Memantau status kunci dari orang tua.")
             .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
             .setOngoing(true)

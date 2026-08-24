@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Dibutuhkan untuk memanggil https://api.patio.my.id. -->
+    <!-- Dibutuhkan untuk memanggil https://timecraft.my.id. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
     <!--
@@ -19,7 +19,7 @@
     <application
         android:name=".PactioApplication"
         android:allowBackup="true"
-        android:label="Pactio"
+        android:label="TimeCraft"
         android:supportsRtl="true"
         android:usesCleartextTraffic="false"
         android:theme="@style/Theme.KendaliKeluarga">

@@ -1015,5 +1015,5 @@ const server = http.createServer((req, res) => route(req, res).catch((error) => 
   send(res, status, { error: status === 500 ? "Kesalahan server." : error.message });
 }));
 
-if (require.main === module) server.listen(PORT, () => console.log(`Pactio API berjalan di http://localhost:${PORT}`));
+if (require.main === module) server.listen(PORT, () => console.log(`TimeCraft API berjalan di http://localhost:${PORT}`));
 module.exports = { server };

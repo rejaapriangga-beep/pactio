@@ -477,7 +477,7 @@ function renderLogin() {
   wrap.className = "login-screen";
   wrap.innerHTML = `
     <div class="login-card">
-      <h1>Pactio</h1>
+      <h1>TimeCraft</h1>
       <p class="subtitle">Dashboard Orang Tua</p>
       ${state.loginError ? `<div class="banner banner-error">${escapeHtml(state.loginError)}</div>` : ""}
       <form id="login-form">
@@ -508,7 +508,7 @@ function renderApp() {
   const topbar = document.createElement("div");
   topbar.className = "topbar";
   topbar.innerHTML = `
-    <div class="brand">Pactio</div>
+    <div class="brand">TimeCraft</div>
     <div class="actions">
       <span style="color: var(--text-muted); font-size: 14px;">${escapeHtml(state.user.name)}</span>
       <button class="btn btn-text btn-sm" id="logout-btn">Keluar</button>

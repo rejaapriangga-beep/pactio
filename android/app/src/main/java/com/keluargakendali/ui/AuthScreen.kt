@@ -135,7 +135,7 @@ private fun ChildLandingScreen(
                 Modifier.size(30.dp).clip(RoundedCornerShape(9.dp))
                     .background(MaterialTheme.colorScheme.primary)
             )
-            Text("Pactio", style = MaterialTheme.typography.titleLarge)
+            Text("TimeCraft", style = MaterialTheme.typography.titleLarge)
         }
 
         Spacer(Modifier.height(26.dp))

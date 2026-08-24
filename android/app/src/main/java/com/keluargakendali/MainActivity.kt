@@ -98,7 +98,7 @@ private fun PactioApp() {
                 // TopAppBar generik ini hanya untuk dashboard orang tua/anak setelah login.
                 if (state.currentUser != null) {
                     TopAppBar(
-                        title = { Text("Pactio") },
+                        title = { Text("TimeCraft") },
                         actions = {
                             // Pengaturan dipindah ke sini (bukan tab lagi - lihat ParentScreen/ChildScreen)
                             // supaya tab utama tetap muat satu baris tanpa digulir. Sengaja di sebelah

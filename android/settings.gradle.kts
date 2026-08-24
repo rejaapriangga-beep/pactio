@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Pactio"
+rootProject.name = "TimeCraft"
 include(":app")
