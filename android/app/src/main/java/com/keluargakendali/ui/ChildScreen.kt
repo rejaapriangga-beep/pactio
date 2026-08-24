@@ -240,7 +240,6 @@ private fun ChildIncompleteTasksCard(incomplete: List<TaskDto>) {
     }
 }
 
-@Composable
 /** Ikon + warna aksen - sama pola dengan DashboardStatCard di ParentScreen.kt (lebih hidup daripada kartu putih polos). */
 @Composable
 private fun ChildStatCard(modifier: Modifier = Modifier, label: String, value: String, icon: ImageVector, accentColor: Color) {

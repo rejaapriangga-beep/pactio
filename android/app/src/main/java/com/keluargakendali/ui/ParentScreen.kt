@@ -795,7 +795,6 @@ fun DashboardChatPreviewCard(messages: List<ChatMessageDto>, currentUserId: Stri
     }
 }
 
-@Composable
 /** Ikon + warna aksen per kartu ringkasan - lebih hidup daripada kartu putih polos sebelumnya, sesuai permintaan "lebih berwarna". */
 @Composable
 private fun DashboardStatCard(modifier: Modifier = Modifier, label: String, value: String, icon: ImageVector, accentColor: Color, onClick: () -> Unit) {
