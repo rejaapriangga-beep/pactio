@@ -6,9 +6,8 @@
  * (lihat serveStatic di server.js) jadi semua panggilan API di bawah pakai path relatif,
  * tidak perlu CORS.
  *
- * Versi pertama (inti): Dashboard, Daftar Tugas, Approval Tugas. Kunci Perangkat, Chat, dan
- * Pengaturan (kelola profil anak) BELUM ada di sini - tetap dikelola lewat aplikasi Android
- * untuk saat ini, menyusul di iterasi berikutnya.
+ * Cakupan: Dashboard, Daftar Tugas, Approval Tugas, Kunci Perangkat, Chat, dan Pengaturan
+ * (kelola profil anak) - setara aplikasi Android untuk peran orang tua.
  *
  * Login HANYA lewat email+password orang tua (POST /auth/login-parent) - akun anak (kode
  * keluarga+PIN) sengaja TIDAK didukung di sini, supaya halaman ini murni jadi kanal kontrol
@@ -23,6 +22,14 @@
 const TOKEN_KEY = "pactio_web_token";
 const USER_KEY = "pactio_web_user";
 
+/** Thread key khusus grup obrolan bersama SEMUA anggota keluarga - harus sama persis dengan FAMILY_THREAD_KEY di server.js & FAMILY_CHAT_THREAD_ID di Android. */
+const FAMILY_CHAT_THREAD_ID = "family";
+
+/** Jarak antar poll otomatis di background - sama dengan AUTO_REFRESH_MS di Android MainActivity.kt. */
+const AUTO_REFRESH_MS = 8000;
+/** Poll pesan chat lebih cepat selagi tab Chat aktif - sama dengan ChatScreen.kt di Android. */
+const CHAT_POLL_MS = 4000;
+
 const state = {
   token: localStorage.getItem(TOKEN_KEY) || null,
   user: safeParse(localStorage.getItem(USER_KEY)),
@@ -32,11 +39,20 @@ const state = {
   loading: false,
   errorMessage: null,
   infoMessage: null,
-  tab: "dashboard", // dashboard | tasks | approval
+  tab: "dashboard", // dashboard | tasks | approval | lock | chat | settings
   taskFilter: { childId: "", status: "" },
   detailTaskId: null,
   showCreateTask: false,
-  loginError: null
+  loginError: null,
+  // Chat
+  chatThreadId: FAMILY_CHAT_THREAD_ID,
+  chatMessages: [],
+  chatUnreadTotal: 0,
+  chatSending: false,
+  chatError: null,
+  // Pengaturan
+  showAddChild: false,
+  childPendingDeleteId: null
 };
 
 function safeParse(json) {
@@ -83,6 +99,8 @@ function clearSession() {
   state.family = null;
   state.children = [];
   state.tasks = [];
+  state.chatMessages = [];
+  state.chatUnreadTotal = 0;
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
 }
@@ -111,8 +129,79 @@ async function loadTasks() {
   state.tasks = result.tasks;
 }
 
+async function loadChatUnread() {
+  const result = await api("GET", "/chat/unread-summary");
+  state.chatUnreadTotal = result.total;
+}
+
 async function refreshAll() {
-  await Promise.all([loadFamily(), loadTasks()]);
+  await Promise.all([loadFamily(), loadTasks(), loadChatUnread()]);
+}
+
+/**
+ * true kalau user sedang mengetik di suatu field teks (composer chat, catatan tolak tugas,
+ * form tambah anak, dsb). Dipakai untuk MELEWATKAN re-render penuh dari polling latar
+ * belakang - pendekatan render() di file ini selalu reset innerHTML total, yang akan
+ * menghapus fokus & isi field yang sedang diketik kalau dipaksa render ulang di tengah
+ * mengetik. Data tetap diambil di background seperti biasa; tampilannya menyusul begitu
+ * user selesai mengetik / pindah fokus, di siklus poll berikutnya.
+ */
+function isTypingInField() {
+  const el = document.activeElement;
+  if (!el) return false;
+  if (el.tagName === "TEXTAREA") return true;
+  if (el.tagName === "INPUT") return ["text", "", "search", "email", "password", "number"].includes(el.type);
+  return false;
+}
+
+/**
+ * Poll berkala di background - supaya tugas baru/status berubah/pesan chat dari PERANGKAT
+ * LAIN (mis. Android orang tua yang sama, atau anak) muncul otomatis tanpa perlu refresh
+ * manual. Sengaja diam-diam (tidak menyentuh loading/errorMessage) - konsisten dengan
+ * AppViewModel.silentRefresh di Android.
+ */
+async function silentRefresh() {
+  if (!state.token) return;
+  try {
+    await Promise.all([loadFamily(), loadTasks(), loadChatUnread()]);
+    if (!isTypingInField()) render();
+  } catch {
+    // kegagalan sesekali (jaringan hiccup) tidak perlu ditampilkan sebagai error - dicoba lagi siklus berikutnya
+  }
+}
+setInterval(silentRefresh, AUTO_REFRESH_MS);
+
+// --- Poll pesan chat (lebih cepat, cuma selagi tab Chat aktif) -----------------------------
+
+let chatPollTimer = null;
+let lastLoadedChatThreadId = null;
+
+/**
+ * Dipanggil di akhir tiap render() - menyalakan/mematikan poll cepat sesuai tab aktif, dan
+ * memuat pesan sekali segera saat tab Chat baru dibuka / thread-nya baru dipilih (bukan
+ * menunggu siklus poll pertama).
+ */
+function ensureChatPolling() {
+  const shouldPoll = Boolean(state.token) && state.tab === "chat";
+  if (!shouldPoll) {
+    lastLoadedChatThreadId = null;
+    if (chatPollTimer) { clearInterval(chatPollTimer); chatPollTimer = null; }
+    return;
+  }
+  if (lastLoadedChatThreadId !== state.chatThreadId) {
+    lastLoadedChatThreadId = state.chatThreadId;
+    loadChatMessages(true).then(render).catch(() => {});
+  }
+  if (!chatPollTimer) {
+    chatPollTimer = setInterval(async () => {
+      try {
+        await loadChatMessages(true);
+        if (!isTypingInField()) render();
+      } catch {
+        // sama seperti silentRefresh - dicoba lagi siklus berikutnya
+      }
+    }, CHAT_POLL_MS);
+  }
 }
 
 // --- Aksi -----------------------------------------------------------------------------
@@ -162,6 +251,91 @@ async function handleDecide(taskId, approved, note) {
   });
 }
 
+async function handleSetLock(childId, enabled) {
+  await guarded(async () => {
+    await api("POST", `/children/${childId}/lock`, { enabled });
+    await loadFamily();
+    state.infoMessage = enabled ? "Perangkat anak dikunci." : "Kunci perangkat dibuka.";
+  });
+}
+
+async function handleAddChild(name, pin) {
+  await guarded(async () => {
+    await api("POST", "/family/children", { name, pin });
+    await loadFamily();
+    state.showAddChild = false;
+    state.infoMessage = "Profil anak berhasil ditambahkan.";
+  });
+}
+
+async function handleDeleteChild(childId) {
+  await guarded(async () => {
+    await api("DELETE", `/family/children/${childId}`);
+    await loadFamily();
+    await loadTasks();
+    state.childPendingDeleteId = null;
+    state.infoMessage = "Profil anak dihapus.";
+  });
+}
+
+// --- Chat -----------------------------------------------------------------------------
+
+/**
+ * Isi thread aktif diambil/dikirim terpisah dari refreshAll biasa (mirip pola ChatScreen di
+ * Android) - dipanggil saat tab Chat dibuka & lewat poll cepat CHAT_POLL_MS selagi aktif.
+ * Menandai terbaca setiap kali dibuka atau ada pesan MASUK baru (bukan pesan sendiri).
+ */
+async function loadChatMessages(markReadIfNew) {
+  const previousIds = new Set(state.chatMessages.map((m) => m.id));
+  const result = await api("GET", `/chat/${state.chatThreadId}/messages`);
+  state.chatMessages = result.messages;
+  const hasNewIncoming = result.messages.some((m) => !previousIds.has(m.id) && m.senderId !== state.user.id);
+  if (markReadIfNew && (previousIds.size === 0 || hasNewIncoming)) {
+    await api("POST", `/chat/${state.chatThreadId}/read`);
+    await loadChatUnread();
+  }
+}
+
+async function handleSendChatText(text) {
+  if (!text.trim()) return;
+  state.chatSending = true;
+  state.chatError = null;
+  render();
+  try {
+    const result = await api("POST", `/chat/${state.chatThreadId}/messages`, { type: "text", text: text.trim() });
+    state.chatMessages = [...state.chatMessages, result.message];
+  } catch (error) {
+    state.chatError = error.message || "Gagal mengirim pesan.";
+  }
+  state.chatSending = false;
+  render();
+}
+
+/** file: objek File dari <input type="file"> - dibaca sebagai data URI base64 lalu dikirim (foto chat, JPEG/PNG saja). */
+async function handleSendChatPhoto(file) {
+  state.chatSending = true;
+  state.chatError = null;
+  render();
+  try {
+    const dataUri = await readFileAsDataUri(file);
+    const result = await api("POST", `/chat/${state.chatThreadId}/messages`, { type: "photo", photo: dataUri });
+    state.chatMessages = [...state.chatMessages, result.message];
+  } catch (error) {
+    state.chatError = error.message || "Gagal mengirim foto.";
+  }
+  state.chatSending = false;
+  render();
+}
+
+function readFileAsDataUri(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error("Gagal membaca berkas."));
+    reader.readAsDataURL(file);
+  });
+}
+
 // --- Render -----------------------------------------------------------------------------
 
 const root = document.getElementById("app");
@@ -175,9 +349,11 @@ function render() {
   }
   if (!state.token || !state.user) {
     root.appendChild(renderLogin());
+    ensureChatPolling();
     return;
   }
   root.appendChild(renderApp());
+  ensureChatPolling();
 }
 
 function renderLogin() {
@@ -232,7 +408,10 @@ function renderApp() {
   tabs.innerHTML = [
     tabHtml("dashboard", "Dashboard"),
     tabHtml("tasks", "Daftar Tugas"),
-    tabHtml("approval", "Approval Tugas", approvalCount)
+    tabHtml("approval", "Approval Tugas", approvalCount),
+    tabHtml("chat", "Chat", state.chatUnreadTotal),
+    tabHtml("lock", "Kunci Perangkat"),
+    tabHtml("settings", "Pengaturan")
   ].join("");
   tabs.querySelectorAll(".tab").forEach((el) => {
     el.addEventListener("click", () => { state.tab = el.dataset.tab; render(); });
@@ -242,6 +421,7 @@ function renderApp() {
   // Content
   const content = document.createElement("div");
   content.className = "content";
+  if (state.tab === "chat") content.classList.add("content-chat");
 
   if (state.errorMessage) content.appendChild(banner("error", state.errorMessage, () => { state.errorMessage = null; render(); }));
   if (state.infoMessage) content.appendChild(banner("info", state.infoMessage, () => { state.infoMessage = null; render(); }));
@@ -249,12 +429,18 @@ function renderApp() {
   if (state.tab === "dashboard") content.appendChild(renderDashboard());
   else if (state.tab === "tasks") content.appendChild(renderTaskList());
   else if (state.tab === "approval") content.appendChild(renderApproval());
+  else if (state.tab === "chat") content.appendChild(renderChatTab());
+  else if (state.tab === "lock") content.appendChild(renderLockTab());
+  else if (state.tab === "settings") content.appendChild(renderSettingsTab());
 
   wrap.appendChild(content);
 
   if (state.showCreateTask) wrap.appendChild(renderCreateTaskModal());
   const detailTask = state.tasks.find((t) => t.id === state.detailTaskId);
   if (detailTask) wrap.appendChild(renderTaskDetailModal(detailTask));
+  if (state.showAddChild) wrap.appendChild(renderAddChildModal());
+  const deleteTarget = state.children.find((c) => c.id === state.childPendingDeleteId);
+  if (deleteTarget) wrap.appendChild(renderDeleteChildModal(deleteTarget));
 
   return wrap;
 }
@@ -524,6 +710,246 @@ function approvalCard(task) {
   });
 
   return el;
+}
+
+// --- Kunci Perangkat ---------------------------------------------------------------------
+
+function renderLockTab() {
+  const el = document.createElement("div");
+  if (state.children.length === 0) {
+    el.appendChild(emptyHint("Belum ada profil anak."));
+    return el;
+  }
+  const lockedCount = state.children.filter((c) => c.lockModeEnabled).length;
+  const summary = document.createElement("p");
+  summary.className = "lock-summary";
+  summary.style.color = lockedCount > 0 ? "var(--error-text)" : "var(--text-muted)";
+  summary.textContent = lockedCount === 0 ? "Tidak ada yang dikunci" : `${lockedCount} dari ${state.children.length} anak dikunci`;
+  el.appendChild(summary);
+
+  state.children.forEach((child) => {
+    const row = document.createElement("div");
+    row.className = "lock-row";
+    row.innerHTML = `
+      <span>${escapeHtml(child.name)}</span>
+      <label class="switch">
+        <input type="checkbox" ${child.lockModeEnabled ? "checked" : ""} ${state.loading ? "disabled" : ""} />
+        <span class="switch-slider"></span>
+      </label>
+    `;
+    row.querySelector("input").addEventListener("change", (event) => handleSetLock(child.id, event.target.checked));
+    el.appendChild(row);
+  });
+  return el;
+}
+
+// --- Pengaturan ----------------------------------------------------------------------------
+
+function renderSettingsTab() {
+  const el = document.createElement("div");
+  const card = document.createElement("div");
+  card.className = "card";
+  card.innerHTML = `<h3 style="margin-top: 0;">Profil Anak</h3>`;
+
+  if (state.children.length === 0) {
+    const hint = document.createElement("p");
+    hint.style.color = "var(--text-muted)";
+    hint.textContent = "Belum ada profil anak.";
+    card.appendChild(hint);
+  } else {
+    state.children.forEach((child) => {
+      const row = document.createElement("div");
+      row.className = "settings-child-row";
+      row.innerHTML = `<span>${escapeHtml(child.name)}</span><button type="button" class="btn btn-text btn-sm">Hapus</button>`;
+      row.querySelector("button").addEventListener("click", () => { state.childPendingDeleteId = child.id; render(); });
+      card.appendChild(row);
+    });
+  }
+
+  const addBtn = document.createElement("button");
+  addBtn.type = "button";
+  addBtn.className = "btn btn-outline btn-block";
+  addBtn.style.marginTop = "14px";
+  addBtn.textContent = "+ Tambah Anak";
+  addBtn.addEventListener("click", () => { state.showAddChild = true; render(); });
+  card.appendChild(addBtn);
+
+  el.appendChild(card);
+  return el;
+}
+
+function renderAddChildModal() {
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.innerHTML = `
+    <div class="modal">
+      <h2>Tambah profil anak</h2>
+      <form id="add-child-form">
+        <div class="field"><label>Nama anak</label><input type="text" name="name" required /></div>
+        <div class="field"><label>PIN (4-8 digit)</label><input type="password" name="pin" inputmode="numeric" pattern="[0-9]{4,8}" required /></div>
+        <div class="modal-close-row">
+          <button type="button" class="btn btn-text" id="cancel-add-child">Batal</button>
+          <button type="submit" class="btn btn-primary" ${state.loading ? "disabled" : ""}>Simpan</button>
+        </div>
+      </form>
+    </div>
+  `;
+  overlay.addEventListener("click", (event) => { if (event.target === overlay) { state.showAddChild = false; render(); } });
+  overlay.querySelector("#cancel-add-child").addEventListener("click", () => { state.showAddChild = false; render(); });
+  overlay.querySelector("#add-child-form").addEventListener("submit", (event) => {
+    event.preventDefault();
+    const form = new FormData(event.target);
+    const pin = String(form.get("pin") || "").replace(/\D/g, "").slice(0, 8);
+    handleAddChild(form.get("name"), pin);
+  });
+  return overlay;
+}
+
+function renderDeleteChildModal(child) {
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.innerHTML = `
+    <div class="modal">
+      <h2>Hapus profil ${escapeHtml(child.name)}?</h2>
+      <p>Semua tugas, riwayat chat, dan foto bukti miliknya akan ikut terhapus, dan perangkat anak ini akan otomatis keluar. Tindakan ini tidak bisa dibatalkan.</p>
+      <div class="modal-close-row">
+        <button type="button" class="btn btn-text" id="cancel-delete-child">Batal</button>
+        <button type="button" class="btn btn-danger" id="confirm-delete-child" ${state.loading ? "disabled" : ""}>Hapus</button>
+      </div>
+    </div>
+  `;
+  overlay.addEventListener("click", (event) => { if (event.target === overlay) { state.childPendingDeleteId = null; render(); } });
+  overlay.querySelector("#cancel-delete-child").addEventListener("click", () => { state.childPendingDeleteId = null; render(); });
+  overlay.querySelector("#confirm-delete-child").addEventListener("click", () => handleDeleteChild(child.id));
+  return overlay;
+}
+
+// --- Chat -----------------------------------------------------------------------------------
+
+/**
+ * Kalau anak lebih dari satu (atau bahkan satu), pemilih thread selalu tampil: "Semua Anak"
+ * (grup bersama semua anggota keluarga) sebagai pilihan pertama, ditambah satu thread privat
+ * per anak - konsisten dengan ParentChatTab di Android.
+ */
+function renderChatTab() {
+  const el = document.createElement("div");
+  el.className = "chat-wrap";
+
+  if (state.children.length === 0) {
+    el.appendChild(emptyHint("Belum ada profil anak untuk diajak chat."));
+    return el;
+  }
+
+  const options = [{ id: FAMILY_CHAT_THREAD_ID, name: "Semua Anak" }, ...state.children];
+  const filterRow = document.createElement("div");
+  filterRow.className = "filter-row";
+  filterRow.innerHTML = `
+    <select id="chat-thread-select">
+      ${options.map((o) => `<option value="${escapeHtml(o.id)}" ${state.chatThreadId === o.id ? "selected" : ""}>${escapeHtml(o.name)}</option>`).join("")}
+    </select>
+  `;
+  filterRow.querySelector("#chat-thread-select").addEventListener("change", (event) => {
+    state.chatThreadId = event.target.value;
+    state.chatMessages = [];
+    render();
+  });
+  el.appendChild(filterRow);
+
+  if (state.chatError) el.appendChild(banner("error", state.chatError, () => { state.chatError = null; render(); }));
+
+  const messagesEl = document.createElement("div");
+  messagesEl.className = "chat-messages";
+  messagesEl.id = "chat-messages";
+  el.appendChild(messagesEl);
+  renderChatMessages(messagesEl);
+
+  const form = document.createElement("form");
+  form.className = "chat-composer";
+  form.innerHTML = `
+    <label class="btn btn-outline btn-sm chat-photo-btn" title="Kirim foto">
+      Foto
+      <input type="file" accept="image/jpeg,image/png" id="chat-photo-input" hidden />
+    </label>
+    <input type="text" id="chat-text-input" placeholder="Tulis pesan..." autocomplete="off" ${state.chatSending ? "disabled" : ""} />
+    <button type="submit" class="btn btn-primary btn-sm" ${state.chatSending ? "disabled" : ""}>Kirim</button>
+  `;
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const input = form.querySelector("#chat-text-input");
+    const text = input.value;
+    input.value = "";
+    handleSendChatText(text);
+  });
+  form.querySelector("#chat-photo-input").addEventListener("change", (event) => {
+    const file = event.target.files[0];
+    event.target.value = "";
+    if (file) handleSendChatPhoto(file);
+  });
+  el.appendChild(form);
+
+  return el;
+}
+
+/** Dipanggil terpisah dari renderChatTab supaya bisa dipakai ulang tiap poll pesan baru (lihat ensureChatPolling). */
+function renderChatMessages(container) {
+  container.innerHTML = "";
+  if (state.chatMessages.length === 0) {
+    container.appendChild(emptyHint("Belum ada percakapan. Kirim pesan pertama!"));
+    return;
+  }
+  state.chatMessages.forEach((message) => container.appendChild(chatBubble(message)));
+  container.scrollTop = container.scrollHeight;
+}
+
+function chatBubble(message) {
+  const isMine = message.senderId === state.user.id;
+  const wrap = document.createElement("div");
+  wrap.className = `chat-row ${isMine ? "mine" : ""}`;
+
+  const bubble = document.createElement("div");
+  bubble.className = "chat-bubble";
+
+  if (!isMine) {
+    const label = document.createElement("div");
+    label.className = "chat-sender";
+    label.textContent = message.senderRole === "parent" ? "Orang Tua" : (childName(message.senderId) || "Anak");
+    bubble.appendChild(label);
+  }
+
+  if (message.type === "photo") {
+    const slot = document.createElement("div");
+    slot.className = "chat-photo-slot";
+    slot.textContent = "Memuat...";
+    bubble.appendChild(slot);
+    apiBytes(`/chat/${message.childId}/messages/${message.id}/photo`)
+      .then((blob) => {
+        const url = URL.createObjectURL(blob);
+        slot.innerHTML = `<img src="${url}" alt="Foto chat" />`;
+        slot.addEventListener("click", () => showImagePreview(url));
+      })
+      .catch(() => { slot.textContent = "Foto tidak tersedia"; });
+  } else {
+    const text = document.createElement("div");
+    text.textContent = message.text || "";
+    bubble.appendChild(text);
+  }
+
+  const time = document.createElement("div");
+  time.className = "chat-time";
+  time.textContent = formatChatTime(message.createdAt);
+  bubble.appendChild(time);
+
+  wrap.appendChild(bubble);
+  return wrap;
+}
+
+function formatChatTime(iso) {
+  try {
+    const d = new Date(iso);
+    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  } catch {
+    return "";
+  }
 }
 
 // --- Mulai ------------------------------------------------------------------------------
