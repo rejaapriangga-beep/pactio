@@ -3,6 +3,8 @@ package com.keluargakendali.ui
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,10 +17,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -31,6 +36,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -58,6 +64,7 @@ import androidx.compose.ui.unit.dp
 import com.keluargakendali.data.PactioApi
 import com.keluargakendali.data.TaskDto
 import com.keluargakendali.data.UserDto
+import com.keluargakendali.data.statusLabel
 
 @Composable
 fun ParentScreen(
@@ -71,6 +78,9 @@ fun ParentScreen(
 ) {
     var showSettings by remember { mutableStateOf(false) }
     var showCreateTask by remember { mutableStateOf(false) }
+    var lockSectionExpanded by remember { mutableStateOf(false) }
+    var statusFilter by remember { mutableStateOf<String?>(null) }
+    var childFilter by remember { mutableStateOf<String?>(null) }
 
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         state.errorMessage?.let {
@@ -78,10 +88,9 @@ fun ParentScreen(
             Spacer(Modifier.height(12.dp))
         }
 
-        // Satu kartu ringkas: identitas keluarga, kunci per anak (Kontrol Perangkat -
-        // sengaja digabung di sini, bukan seksi terpisah, supaya tidak memenuhi layar),
-        // dan aksi utama. Tambah/hapus profil anak dipindah ke Pengaturan (ikon gerigi) -
-        // jarang dipakai, tidak perlu selalu terlihat di layar utama.
+        // Satu kartu ringkas: identitas keluarga, kunci per anak, dan aksi utama.
+        // Tambah/hapus profil anak dipindah ke Pengaturan (ikon gerigi) - jarang dipakai,
+        // tidak perlu selalu terlihat di layar utama.
         Card(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             shape = RoundedCornerShape(22.dp)
@@ -114,25 +123,13 @@ fun ParentScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 } else {
-                    state.children.forEach { child ->
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text(child.name, fontWeight = FontWeight.SemiBold)
-                                if (child.lockModeEnabled) {
-                                    Text("Terkunci", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-                                }
-                            }
-                            Switch(
-                                checked = child.lockModeEnabled,
-                                onCheckedChange = { onSetLock(child.id, it) },
-                                enabled = !state.loading
-                            )
-                        }
-                    }
+                    LockSection(
+                        children = state.children,
+                        expanded = lockSectionExpanded,
+                        onToggleExpanded = { lockSectionExpanded = !lockSectionExpanded },
+                        loading = state.loading,
+                        onSetLock = onSetLock
+                    )
                 }
 
                 Button(
@@ -167,9 +164,24 @@ fun ParentScreen(
         Spacer(Modifier.height(16.dp))
         Text("Semua tugas", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(8.dp))
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            items(state.tasks, key = { it.id }) { task ->
-                TaskSummaryCard(task = task, childName = state.children.find { it.id == task.childId }?.name)
+        TaskFilterRow(
+            children = state.children,
+            selectedChildId = childFilter,
+            onSelectChild = { childFilter = it },
+            selectedStatus = statusFilter,
+            onSelectStatus = { statusFilter = it }
+        )
+        Spacer(Modifier.height(8.dp))
+        val filteredTasks = state.tasks.filter { task ->
+            (statusFilter == null || task.status == statusFilter) && (childFilter == null || task.childId == childFilter)
+        }
+        if (filteredTasks.isEmpty()) {
+            Text("Tidak ada tugas yang cocok dengan filter.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(filteredTasks, key = { it.id }) { task ->
+                    TaskSummaryCard(task = task, childName = state.children.find { it.id == task.childId }?.name)
+                }
             }
         }
     }
@@ -299,6 +311,103 @@ private fun TaskSummaryCard(task: TaskDto, childName: String?) {
             }
             if (childName != null) Text("Anak: $childName", style = MaterialTheme.typography.bodySmall)
             Text("Hadiah: ${task.rewardMinutes} menit akses", color = MaterialTheme.colorScheme.primary)
+        }
+    }
+}
+
+/**
+ * Kontrol Perangkat, diringkas jadi satu baris yang bisa di-expand/collapse (tertutup
+ * secara default) - cuma menampilkan ringkasan (berapa anak sedang terkunci) sampai orang
+ * tua sengaja membukanya, supaya tidak memenuhi layar tiap kali dibuka.
+ */
+@Composable
+private fun LockSection(
+    children: List<UserDto>,
+    expanded: Boolean,
+    onToggleExpanded: () -> Unit,
+    loading: Boolean,
+    onSetLock: (childId: String, enabled: Boolean) -> Unit
+) {
+    val lockedCount = children.count { it.lockModeEnabled }
+
+    Column {
+        Row(
+            Modifier.fillMaxWidth().clickable(onClick = onToggleExpanded),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text("Kontrol Perangkat", fontWeight = FontWeight.SemiBold)
+                Text(
+                    if (lockedCount == 0) "Tidak ada yang dikunci" else "$lockedCount dari ${children.size} anak dikunci",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (lockedCount > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Icon(
+                if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                contentDescription = if (expanded) "Sembunyikan" else "Tampilkan"
+            )
+        }
+
+        if (expanded) {
+            Spacer(Modifier.height(8.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                children.forEach { child ->
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(child.name)
+                        Switch(
+                            checked = child.lockModeEnabled,
+                            onCheckedChange = { onSetLock(child.id, it) },
+                            enabled = !loading
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Filter "Semua tugas": status selalu tampil, filter anak hanya muncul kalau ada lebih
+ * dari satu profil anak (percuma memfilter kalau cuma satu). Sengaja bisa digulir
+ * horizontal (bukan wrap) supaya tetap ringkas di layar sempit.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TaskFilterRow(
+    children: List<UserDto>,
+    selectedChildId: String?,
+    onSelectChild: (String?) -> Unit,
+    selectedStatus: String?,
+    onSelectStatus: (String?) -> Unit
+) {
+    val statuses = listOf("assigned", "submitted", "approved", "rejected")
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (children.size > 1) {
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilterChip(selected = selectedChildId == null, onClick = { onSelectChild(null) }, label = { Text("Semua Anak") })
+                children.forEach { child ->
+                    FilterChip(selected = selectedChildId == child.id, onClick = { onSelectChild(child.id) }, label = { Text(child.name) })
+                }
+            }
+        }
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            FilterChip(selected = selectedStatus == null, onClick = { onSelectStatus(null) }, label = { Text("Semua Status") })
+            statuses.forEach { status ->
+                FilterChip(selected = selectedStatus == status, onClick = { onSelectStatus(status) }, label = { Text(statusLabel(status)) })
+            }
         }
     }
 }
