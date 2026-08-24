@@ -68,7 +68,15 @@ data class BalanceResult(
 )
 
 /**
- * Satu pesan chat orang tua<->anak. Thread-nya per anak (childId) - byte foto TIDAK ikut di
+ * Thread key khusus untuk grup obrolan bersama SEMUA anggota keluarga (orang tua + semua
+ * anak), selain thread privat satu-lawan-satu per anak (thread key-nya id anak itu sendiri).
+ * Harus SAMA PERSIS dengan FAMILY_THREAD_KEY di server.js.
+ */
+const val FAMILY_CHAT_THREAD_ID = "family"
+
+/**
+ * Satu pesan chat. childId di sini sebenarnya "thread key" - bisa FAMILY_CHAT_THREAD_ID
+ * (grup) atau id anak tertentu (privat orang tua<->anak itu saja). Byte foto TIDAK ikut di
  * sini, diambil terpisah lewat GET /chat/:childId/messages/:id/photo selagi photoAvailable
  * masih true (server cuma meneruskan sementara, lihat catatan CHAT_PHOTO_RETENTION_MS di
  * server.js - salinan permanennya ada di ChatPhotoCache lokal masing-masing perangkat).

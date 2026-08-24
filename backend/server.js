@@ -27,6 +27,11 @@ const CHAT_RELAY_DIR = path.join(path.dirname(DATA_FILE), "chat_relay");
 fs.mkdirSync(CHAT_RELAY_DIR, { recursive: true });
 const CHAT_PHOTO_RETENTION_MS = 48 * 60 * 60 * 1000; // 48 jam
 const MAX_CHAT_TEXT_LENGTH = 2000;
+// Thread key khusus untuk grup obrolan bersama SEMUA anggota keluarga (orang tua + semua
+// anak), selain thread privat satu-lawan-satu per anak yang sudah ada. Dipakai sebagai nilai
+// field childId pada pesan - "childId" jadi istilah umum "thread key" sejak ini, bukan cuma id
+// anak sungguhan (lihat canAccessChatThread).
+const FAMILY_THREAD_KEY = "family";
 // Client ID OAuth tipe "Web application" dari Google Cloud Console. Ini BUKAN rahasia
 // (Client ID memang publik, sama seperti yang dibundel di aplikasi Android) — dipakai
 // di sini hanya untuk memeriksa klaim "aud" pada token ID Google. Kalau kosong, endpoint
@@ -293,13 +298,19 @@ function chatPhotoPath(messageId, ext) {
 }
 
 /**
- * Mengembalikan child user yang jadi lawan bicara thread ini, atau null kalau `user` tidak
- * berhak mengakses thread childId ini - anak cuma boleh akses thread miliknya sendiri; orang
- * tua cuma boleh akses thread anak di keluarganya sendiri.
+ * Ada dua jenis thread chat:
+ * - FAMILY_THREAD_KEY ("family"): grup bersama SEMUA anggota keluarga (orang tua + semua anak)
+ *   - siapa saja di keluarga yang sama boleh mengakses.
+ * - id anak tertentu: thread privat satu-lawan-satu orang tua<->anak itu saja (perilaku asli
+ *   sebelum grup ditambahkan) - anak cuma boleh akses thread miliknya sendiri, orang tua cuma
+ *   boleh akses thread anak di keluarganya sendiri.
+ * Mengembalikan true/false, bukan objek - pemanggil hanya perlu tahu boleh/tidaknya, threadKey
+ * yang sudah divalidasi dipakai langsung sebagai field childId pada pesan.
  */
-function chatThreadChild(user, childId) {
-  if (user.role === "child") return user.id === childId ? user : null;
-  return db.users.find((item) => item.id === childId && item.familyId === user.familyId && item.role === "child") || null;
+function canAccessChatThread(user, threadKey) {
+  if (threadKey === FAMILY_THREAD_KEY) return true;
+  if (user.role === "child") return user.id === threadKey;
+  return db.users.some((item) => item.id === threadKey && item.familyId === user.familyId && item.role === "child");
 }
 
 /** Thread key dipakai juga untuk menyimpan cursor "sudah dibaca sampai" per pengguna. */
@@ -634,15 +645,17 @@ async function route(req, res) {
     return send(res, 200, { ...accessBalanceFor(child), unlockUntil: child.unlockUntil });
   }
 
-  // Ringkasan belum-dibaca untuk badge tab Chat - dihitung per thread anak (orang tua bisa
-  // punya beberapa anak, jadi beberapa thread), lalu dijumlah jadi satu angka `total` untuk
-  // badge tab-nya. threads[] dipakai kalau UI ingin menonjolkan anak mana yang punya pesan baru.
+  // Ringkasan belum-dibaca untuk badge tab Chat - dihitung per thread (grup keluarga + satu
+  // per anak, orang tua bisa punya beberapa anak jadi beberapa thread privat), lalu dijumlah
+  // jadi satu angka `total` untuk badge tab-nya. threads[] dipakai kalau UI ingin menonjolkan
+  // thread mana yang punya pesan baru.
   if (req.method === "GET" && pathname === "/chat/unread-summary") {
     const user = auth(req, res); if (!user) return;
     const childIds = user.role === "child"
       ? [user.id]
       : db.users.filter((item) => item.familyId === user.familyId && item.role === "child").map((item) => item.id);
-    const threads = childIds.map((childId) => ({ childId, unreadCount: unreadCountFor(user.id, childId) }));
+    const threadKeys = [FAMILY_THREAD_KEY, ...childIds];
+    const threads = threadKeys.map((childId) => ({ childId, unreadCount: unreadCountFor(user.id, childId) }));
     const total = threads.reduce((sum, thread) => sum + thread.unreadCount, 0);
     return send(res, 200, { total, threads });
   }
@@ -650,23 +663,23 @@ async function route(req, res) {
   const chatMessagesMatch = pathname.match(/^\/chat\/([^/]+)\/messages$/);
   if (req.method === "GET" && chatMessagesMatch) {
     const user = auth(req, res); if (!user) return;
-    const child = chatThreadChild(user, chatMessagesMatch[1]);
-    if (!child) return send(res, 404, { error: "Thread chat tidak ditemukan." });
+    const threadKey = chatMessagesMatch[1];
+    if (!canAccessChatThread(user, threadKey)) return send(res, 404, { error: "Thread chat tidak ditemukan." });
     // Riwayat kecil (satu keluarga, bukan aplikasi chat umum) - cukup ambil semua lalu potong
     // 200 pesan terakhir, tidak perlu paginasi bertingkat.
-    const thread = db.chatMessages.filter((message) => message.childId === child.id).slice(-200);
+    const thread = db.chatMessages.filter((message) => message.childId === threadKey).slice(-200);
     return send(res, 200, { messages: thread.map(publicChatMessage) });
   }
 
   if (req.method === "POST" && chatMessagesMatch) {
     const user = auth(req, res); if (!user) return;
-    const child = chatThreadChild(user, chatMessagesMatch[1]);
-    if (!child) return send(res, 404, { error: "Thread chat tidak ditemukan." });
+    const threadKey = chatMessagesMatch[1];
+    if (!canAccessChatThread(user, threadKey)) return send(res, 404, { error: "Thread chat tidak ditemukan." });
     const body = await bodyOf(req);
     const type = body.type === "photo" ? "photo" : "text";
 
     const message = {
-      id: id("chatmsg"), childId: child.id, senderId: user.id, senderRole: user.role,
+      id: id("chatmsg"), childId: threadKey, senderId: user.id, senderRole: user.role,
       type, text: null, photoMime: null, photoAvailable: false, createdAt: new Date().toISOString()
     };
 
@@ -690,9 +703,9 @@ async function route(req, res) {
   const chatPhotoMatch = pathname.match(/^\/chat\/([^/]+)\/messages\/([^/]+)\/photo$/);
   if (req.method === "GET" && chatPhotoMatch) {
     const user = auth(req, res); if (!user) return;
-    const child = chatThreadChild(user, chatPhotoMatch[1]);
-    if (!child) return send(res, 404, { error: "Thread chat tidak ditemukan." });
-    const message = db.chatMessages.find((item) => item.id === chatPhotoMatch[2] && item.childId === child.id);
+    const threadKey = chatPhotoMatch[1];
+    if (!canAccessChatThread(user, threadKey)) return send(res, 404, { error: "Thread chat tidak ditemukan." });
+    const message = db.chatMessages.find((item) => item.id === chatPhotoMatch[2] && item.childId === threadKey);
     if (!message || message.type !== "photo" || !message.photoAvailable) {
       return send(res, 404, { error: "Foto sudah tidak tersedia di server (hanya diteruskan sementara, lihat salinan lokal kamu)." });
     }
@@ -709,9 +722,9 @@ async function route(req, res) {
   const chatReadMatch = pathname.match(/^\/chat\/([^/]+)\/read$/);
   if (req.method === "POST" && chatReadMatch) {
     const user = auth(req, res); if (!user) return;
-    const child = chatThreadChild(user, chatReadMatch[1]);
-    if (!child) return send(res, 404, { error: "Thread chat tidak ditemukan." });
-    setChatReadCursor(user.id, child.id, new Date().toISOString());
+    const threadKey = chatReadMatch[1];
+    if (!canAccessChatThread(user, threadKey)) return send(res, 404, { error: "Thread chat tidak ditemukan." });
+    setChatReadCursor(user.id, threadKey, new Date().toISOString());
     save();
     return send(res, 200, { ok: true });
   }

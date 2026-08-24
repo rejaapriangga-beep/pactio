@@ -179,14 +179,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _state.update { it.copy(infoMessage = if (enabled) "Perangkat anak dikunci." else "Kunci perangkat dibuka.") }
     }
 
-    fun refresh() = requireToken { token ->
-        loadFamily(token)
-        loadTasks(token)
-        loadBalanceIfChild(token)
-        loadChatUnread(token)
-        _state.update { it.copy(infoMessage = "Data diperbarui.") }
-    }
-
     /**
      * Dipanggil ChatScreen setelah menandai thread terbaca atau mengirim/menerima pesan,
      * supaya badge tab Chat langsung ter-update tanpa menunggu siklus silentRefresh 8 detik

@@ -38,7 +38,6 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -66,6 +65,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.keluargakendali.data.FAMILY_CHAT_THREAD_ID
 import com.keluargakendali.data.TaskDto
 import com.keluargakendali.service.AppForegroundState
 import com.keluargakendali.service.DeviceLockPermissions
@@ -94,6 +94,7 @@ fun ChildScreen(
     var selectedTab by remember { mutableStateOf(0) }
     var submittingTask by remember { mutableStateOf<TaskDto?>(null) }
     var showRedeemDialog by remember { mutableStateOf(false) }
+    var selectedChatThreadId by remember { mutableStateOf<String?>(null) }
 
     // Kontrol Perangkat: nyala/matikan DeviceLockService mengikuti status izin "Tampil di atas
     // aplikasi lain" - dihoist ke SINI (bukan di dalam konten tab "Kunci Perangkat") supaya
@@ -115,12 +116,13 @@ fun ChildScreen(
         onDispose { context.stopService(Intent(context, DeviceLockService::class.java)) }
     }
 
+    // Pengaturan sengaja TIDAK ikut sebagai tab - dipindah jadi ikon gerigi di TopAppBar
+    // (lihat MainActivity), tepat di sebelah kiri "Keluar", supaya 4 tab ini muat satu baris.
     val tabs = listOf(
         TabItem("Dashboard", Icons.Default.Dashboard),
         TabItem("Tugas", Icons.Default.Checklist),
         TabItem("Chat", Icons.Default.Chat, badgeCount = state.chatUnreadTotal),
-        TabItem("Kunci", Icons.Default.Lock),
-        TabItem("Atur", Icons.Default.Settings)
+        TabItem("Kunci", Icons.Default.Lock)
     )
 
     Column(Modifier.fillMaxSize()) {
@@ -133,12 +135,13 @@ fun ChildScreen(
         when (selectedTab) {
             0 -> ChildDashboardTab(state = state, onGunakanWaktu = { showRedeemDialog = true })
             1 -> ChildTaskListTab(state = state, onKirim = { submittingTask = it })
-            2 -> {
-                val childId = state.currentUser?.id
-                if (childId != null) ChatScreen(state = state, childId = childId, onRefreshUnread = onRefreshChatUnread)
-            }
+            2 -> ChildChatTab(
+                state = state,
+                selectedThreadId = selectedChatThreadId,
+                onSelectThread = { selectedChatThreadId = it },
+                onRefreshUnread = onRefreshChatUnread
+            )
             3 -> ChildLockTab(hasOverlay = hasOverlay, onOpenSettings = { context.startActivity(DeviceLockPermissions.overlaySettingsIntent(context)) })
-            4 -> ChildSettingsTab(state = state)
         }
     }
 
@@ -212,6 +215,36 @@ private fun ChildTaskListTab(state: UiState, onKirim: (TaskDto) -> Unit) {
     }
 }
 
+/**
+ * Pemilih thread: grup "Keluarga (Semua)" bersama orang tua + semua saudara, atau thread
+ * privat cuma dengan orang tua. Selalu ditampilkan (dua pilihan tetap ada walau anak ini anak
+ * tunggal, karena grup & privat tetap dua riwayat berbeda).
+ */
+@Composable
+private fun ChildChatTab(
+    state: UiState,
+    selectedThreadId: String?,
+    onSelectThread: (String) -> Unit,
+    onRefreshUnread: () -> Unit
+) {
+    val myId = state.currentUser?.id ?: return
+    val activeThreadId = selectedThreadId ?: FAMILY_CHAT_THREAD_ID
+    val options = listOf<Pair<String?, String>>(
+        FAMILY_CHAT_THREAD_ID to "Keluarga (Semua)",
+        myId to "Pribadi dengan Orang Tua"
+    )
+    Column(Modifier.fillMaxSize()) {
+        FilterDropdown(
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            label = "Percakapan",
+            selectedLabel = options.find { it.first == activeThreadId }?.second ?: "Keluarga (Semua)",
+            options = options,
+            onSelect = { value -> value?.let(onSelectThread) }
+        )
+        ChatScreen(state = state, childId = activeThreadId, onRefreshUnread = onRefreshUnread)
+    }
+}
+
 /** Status izin Mode Kunci - anak cuma bisa MELIHAT status & memberi izin, mengaktifkan/mematikan kuncinya sendiri tetap wewenang orang tua. */
 @Composable
 private fun ChildLockTab(hasOverlay: Boolean, onOpenSettings: () -> Unit) {
@@ -252,26 +285,36 @@ private fun ChildLockTab(hasOverlay: Boolean, onOpenSettings: () -> Unit) {
     }
 }
 
-/** Info akun singkat - tidak banyak yang bisa diubah anak sendiri, sebagian besar pengaturan ada di tangan orang tua. */
+/**
+ * Info akun singkat - tidak banyak yang bisa diubah anak sendiri, sebagian besar pengaturan
+ * ada di tangan orang tua. Dipanggil dari MainActivity lewat ikon gerigi di TopAppBar (bukan
+ * tab lagi - lihat catatan di ChildScreen), jadi dialog ini PUBLIC dan berdiri sendiri.
+ */
 @Composable
-private fun ChildSettingsTab(state: UiState) {
-    Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Pengaturan", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Card {
-            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Nama", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(state.currentUser?.name ?: "-", fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(8.dp))
-                Text("Keluarga", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(state.family?.name ?: "-", fontWeight = FontWeight.SemiBold)
+fun ChildSettingsDialog(state: UiState, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Pengaturan") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Card {
+                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Nama", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(state.currentUser?.name ?: "-", fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(8.dp))
+                        Text("Keluarga", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(state.family?.name ?: "-", fontWeight = FontWeight.SemiBold)
+                    }
+                }
+                Text(
+                    "Untuk keluar dari akun ini, gunakan tombol \"Keluar\" di pojok kanan atas.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
-        }
-        Text(
-            "Untuk keluar dari akun ini, gunakan tombol \"Keluar\" di pojok kanan atas.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Tutup") } }
+    )
 }
 
 /**

@@ -35,7 +35,6 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.FactCheck
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -76,6 +75,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import com.keluargakendali.data.EvidenceFileDto
+import com.keluargakendali.data.FAMILY_CHAT_THREAD_ID
 import com.keluargakendali.data.PactioApi
 import com.keluargakendali.data.TaskDto
 import com.keluargakendali.data.UserDto
@@ -85,31 +85,28 @@ import java.io.File
 @Composable
 fun ParentScreen(
     state: UiState,
-    onAddChild: (name: String, pin: String) -> Unit,
-    onDeleteChild: (childId: String) -> Unit,
-    onCreateTask: (childId: String, title: String, description: String, rewardMinutes: Int) -> Unit,
     onDecide: (taskId: String, approved: Boolean, note: String) -> Unit,
     onSetLock: (childId: String, enabled: Boolean) -> Unit,
+    onCreateTask: (childId: String, title: String, description: String, rewardMinutes: Int) -> Unit,
     onDismissMessage: () -> Unit,
     onRefreshChatUnread: () -> Unit
 ) {
     var selectedTab by remember { mutableStateOf(0) }
-    var showAddChild by remember { mutableStateOf(false) }
-    var childPendingDelete by remember { mutableStateOf<UserDto?>(null) }
     var showCreateTask by remember { mutableStateOf(false) }
     var statusFilter by remember { mutableStateOf<String?>(null) }
     var childFilter by remember { mutableStateOf<String?>(null) }
     var detailTask by remember { mutableStateOf<TaskDto?>(null) }
-    var selectedChatChildId by remember { mutableStateOf<String?>(null) }
+    var selectedChatThreadId by remember { mutableStateOf<String?>(null) }
 
     val approvalCount = state.tasks.count { it.status == "submitted" }
+    // Pengaturan sengaja TIDAK ikut sebagai tab - dipindah jadi ikon gerigi di TopAppBar
+    // (lihat MainActivity), tepat di sebelah kiri "Keluar", supaya 5 tab ini muat satu baris.
     val tabs = listOf(
         TabItem("Dashboard", Icons.Default.Dashboard),
         TabItem("Tugas", Icons.Default.Checklist),
         TabItem("Approval", Icons.Default.FactCheck, badgeCount = approvalCount),
         TabItem("Chat", Icons.Default.Chat, badgeCount = state.chatUnreadTotal),
-        TabItem("Kunci", Icons.Default.Lock),
-        TabItem("Atur", Icons.Default.Settings)
+        TabItem("Kunci", Icons.Default.Lock)
     )
 
     Column(Modifier.fillMaxSize()) {
@@ -132,16 +129,11 @@ fun ParentScreen(
             2 -> ParentApprovalTab(state = state, onDecide = onDecide)
             3 -> ParentChatTab(
                 state = state,
-                selectedChildId = selectedChatChildId,
-                onSelectChild = { selectedChatChildId = it },
+                selectedThreadId = selectedChatThreadId,
+                onSelectThread = { selectedChatThreadId = it },
                 onRefreshUnread = onRefreshChatUnread
             )
             4 -> ParentLockTab(children = state.children, loading = state.loading, onSetLock = onSetLock)
-            5 -> ParentSettingsTab(
-                children = state.children,
-                onAddChild = { showAddChild = true },
-                onDeleteChild = { childPendingDelete = it }
-            )
         }
     }
 
@@ -166,10 +158,65 @@ fun ParentScreen(
             }
         )
     }
+}
+
+/**
+ * Pengaturan orang tua: kelola profil anak (tambah/hapus). Dipanggil dari MainActivity lewat
+ * ikon gerigi di TopAppBar (bukan tab lagi - lihat catatan di ParentScreen), jadi dialog ini
+ * PUBLIC dan berdiri sendiri, membawa semua state form-nya sendiri (formulir tambah & konfirmasi
+ * hapus tetap popup di atas dialog ini - transient, jarang dipakai).
+ */
+@Composable
+fun ParentSettingsDialog(
+    children: List<UserDto>,
+    loading: Boolean,
+    onAddChild: (name: String, pin: String) -> Unit,
+    onDeleteChild: (childId: String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var showAddChild by remember { mutableStateOf(false) }
+    var childPendingDelete by remember { mutableStateOf<UserDto?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Pengaturan") },
+        text = {
+            Column {
+                Text("Profil Anak", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                if (children.isEmpty()) {
+                    Text(
+                        "Belum ada profil anak.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    children.forEach { child ->
+                        Row(
+                            Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(child.name)
+                            IconButton(onClick = { childPendingDelete = child }) {
+                                Icon(Icons.Default.Delete, contentDescription = "Hapus ${child.name}", tint = MaterialTheme.colorScheme.error)
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                HorizontalDivider()
+                Spacer(Modifier.height(12.dp))
+                OutlinedButton(onClick = { showAddChild = true }, modifier = Modifier.fillMaxWidth()) {
+                    Text("+ Tambah Anak")
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Tutup") } }
+    )
 
     if (showAddChild) {
         AddChildDialog(
-            loading = state.loading,
+            loading = loading,
             onDismiss = { showAddChild = false },
             onSubmit = { name, pin -> onAddChild(name, pin); showAddChild = false }
         )
@@ -189,7 +236,7 @@ fun ParentScreen(
             confirmButton = {
                 Button(
                     onClick = { onDeleteChild(deleteTarget.id); childPendingDelete = null },
-                    enabled = !state.loading,
+                    enabled = !loading,
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                 ) { Text("Hapus") }
             },
@@ -222,7 +269,7 @@ private fun ParentDashboardTab(state: UiState, approvalCount: Int, onCreateTask:
                     }
                     if (state.children.isEmpty()) {
                         Text(
-                            "Belum ada profil anak. Tambah lewat tab Pengaturan.",
+                            "Belum ada profil anak. Tambah lewat ikon gerigi Pengaturan di kanan atas.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -322,12 +369,17 @@ private fun ParentApprovalTab(state: UiState, onDecide: (taskId: String, approve
     }
 }
 
-/** Kalau anak lebih dari satu, pilih dulu anak mana yang mau diajak chat lewat dropdown. */
+/**
+ * Pemilih thread: grup "Semua Anak" (bersama semua anak + orang tua) selalu jadi pilihan
+ * pertama, ditambah satu thread privat per anak. Selalu ditampilkan (bukan cuma kalau anak
+ * lebih dari satu) karena bahkan dengan 1 anak, grup dan thread privat tetap dua riwayat
+ * yang berbeda.
+ */
 @Composable
 private fun ParentChatTab(
     state: UiState,
-    selectedChildId: String?,
-    onSelectChild: (String) -> Unit,
+    selectedThreadId: String?,
+    onSelectThread: (String) -> Unit,
     onRefreshUnread: () -> Unit
 ) {
     if (state.children.isEmpty()) {
@@ -336,18 +388,18 @@ private fun ParentChatTab(
         }
         return
     }
-    val activeChildId = selectedChildId ?: state.children.first().id
+    val activeThreadId = selectedThreadId ?: FAMILY_CHAT_THREAD_ID
+    val options = listOf<Pair<String?, String>>(FAMILY_CHAT_THREAD_ID to "Semua Anak") +
+        state.children.map { (it.id as String?) to it.name }
     Column(Modifier.fillMaxSize()) {
-        if (state.children.size > 1) {
-            FilterDropdown(
-                modifier = Modifier.fillMaxWidth().padding(12.dp),
-                label = "Anak",
-                selectedLabel = state.children.find { it.id == activeChildId }?.name ?: state.children.first().name,
-                options = state.children.map { (it.id as String?) to it.name },
-                onSelect = { value -> value?.let(onSelectChild) }
-            )
-        }
-        ChatScreen(state = state, childId = activeChildId, onRefreshUnread = onRefreshUnread)
+        FilterDropdown(
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            label = "Percakapan",
+            selectedLabel = options.find { it.first == activeThreadId }?.second ?: "Semua Anak",
+            options = options,
+            onSelect = { value -> value?.let(onSelectThread) }
+        )
+        ChatScreen(state = state, childId = activeThreadId, onRefreshUnread = onRefreshUnread)
     }
 }
 
@@ -380,41 +432,6 @@ private fun ParentLockTab(children: List<UserDto>, loading: Boolean, onSetLock: 
                     }
                 }
             }
-        }
-    }
-}
-
-/** Pengaturan - kelola profil anak (tambah/hapus). Formulir tambah & konfirmasi hapus tetap popup (transient, jarang dipakai). */
-@Composable
-private fun ParentSettingsTab(children: List<UserDto>, onAddChild: () -> Unit, onDeleteChild: (UserDto) -> Unit) {
-    Column(Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Profil Anak", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(8.dp))
-        if (children.isEmpty()) {
-            Text(
-                "Belum ada profil anak.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        } else {
-            children.forEach { child ->
-                Row(
-                    Modifier.fillMaxWidth().padding(vertical = 6.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(child.name)
-                    IconButton(onClick = { onDeleteChild(child) }) {
-                        Icon(Icons.Default.Delete, contentDescription = "Hapus ${child.name}", tint = MaterialTheme.colorScheme.error)
-                    }
-                }
-            }
-        }
-        Spacer(Modifier.height(8.dp))
-        HorizontalDivider()
-        Spacer(Modifier.height(12.dp))
-        OutlinedButton(onClick = onAddChild, modifier = Modifier.fillMaxWidth()) {
-            Text("+ Tambah Anak")
         }
     }
 }
@@ -682,34 +699,6 @@ private fun TaskFilterRow(
             options = listOf<Pair<String?, String>>(null to "Semua Status") + statuses.map { it to statusLabel(it) },
             onSelect = onSelectStatus
         )
-    }
-}
-
-/** Satu dropdown filter (Material3 ExposedDropdownMenuBox, read-only text field). */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun FilterDropdown(
-    modifier: Modifier = Modifier,
-    label: String,
-    selectedLabel: String,
-    options: List<Pair<String?, String>>,
-    onSelect: (String?) -> Unit
-) {
-    var expanded by remember { mutableStateOf(false) }
-    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }, modifier = modifier) {
-        OutlinedTextField(
-            value = selectedLabel,
-            onValueChange = {},
-            readOnly = true,
-            label = { Text(label) },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable)
-        )
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            options.forEach { (value, optionLabel) ->
-                DropdownMenuItem(text = { Text(optionLabel) }, onClick = { onSelect(value); expanded = false })
-            }
-        }
     }
 }
 

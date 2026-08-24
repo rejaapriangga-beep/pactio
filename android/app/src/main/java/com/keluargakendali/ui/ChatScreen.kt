@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -52,6 +53,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.keluargakendali.data.ChatMessageDto
 import com.keluargakendali.data.ChatPhotoCache
@@ -168,7 +170,14 @@ fun ChatScreen(state: UiState, childId: String, onRefreshUnread: () -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 items(messages, key = { it.id }) { message ->
-                    ChatBubble(message = message, isMine = message.senderId == myId, context = context, token = token, childId = childId)
+                    ChatBubble(
+                        message = message,
+                        isMine = message.senderId == myId,
+                        senderName = senderLabelFor(message, state),
+                        context = context,
+                        token = token,
+                        childId = childId
+                    )
                 }
             }
         }
@@ -230,8 +239,14 @@ fun ChatScreen(state: UiState, childId: String, onRefreshUnread: () -> Unit) {
     }
 }
 
+/** Nama pengirim untuk pesan yang BUKAN milik pengguna - penting di thread grup (bisa lebih dari 2 peserta), tetap ditampilkan di thread privat untuk konsistensi. */
+private fun senderLabelFor(message: ChatMessageDto, state: UiState): String {
+    if (message.senderRole == "parent") return "Orang Tua"
+    return state.children.find { it.id == message.senderId }?.name ?: "Anak"
+}
+
 @Composable
-private fun ChatBubble(message: ChatMessageDto, isMine: Boolean, context: Context, token: String, childId: String) {
+private fun ChatBubble(message: ChatMessageDto, isMine: Boolean, senderName: String, context: Context, token: String, childId: String) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = if (isMine) Arrangement.End else Arrangement.Start) {
         Column(
             modifier = Modifier
@@ -240,6 +255,15 @@ private fun ChatBubble(message: ChatMessageDto, isMine: Boolean, context: Contex
                 .background(if (isMine) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
                 .padding(10.dp)
         ) {
+            if (!isMine) {
+                Text(
+                    senderName,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(2.dp))
+            }
             if (message.type == "photo") {
                 ChatPhotoContent(context = context, token = token, childId = childId, message = message)
             } else {

@@ -21,12 +21,18 @@ import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -107,12 +113,14 @@ data class TabItem(val label: String, val icon: ImageVector, val badgeCount: Int
 
 /**
  * Top menu (tab bar) utama dashboard - dipakai baik oleh ParentScreen maupun ChildScreen
- * (dengan daftar tab yang berbeda sesuai peran). Sengaja ScrollableTabRow (bukan fixed
- * TabRow) supaya tidak berdesakan kalau suatu saat jumlah tab bertambah / layar sempit.
+ * (dengan daftar tab yang berbeda sesuai peran). Sengaja TabRow biasa (bukan ScrollableTabRow)
+ * supaya semua tab MUAT dalam satu baris tanpa perlu digulir - tiap tab otomatis berbagi rata
+ * lebar layar. Pengaturan sengaja TIDAK ikut di sini (lihat MainActivity) supaya jumlah tab
+ * tetap sedikit dan muat nyaman.
  */
 @Composable
 fun PactioTabRow(items: List<TabItem>, selectedIndex: Int, onSelect: (Int) -> Unit) {
-    ScrollableTabRow(selectedTabIndex = selectedIndex, edgePadding = 8.dp) {
+    TabRow(selectedTabIndex = selectedIndex) {
         items.forEachIndexed { index, item ->
             Tab(
                 selected = selectedIndex == index,
@@ -128,6 +136,38 @@ fun PactioTabRow(items: List<TabItem>, selectedIndex: Int, onSelect: (Int) -> Un
                     }
                 }
             )
+        }
+    }
+}
+
+/**
+ * Satu dropdown pilihan (Material3 ExposedDropdownMenuBox, read-only text field) - dipakai
+ * untuk filter Daftar Tugas (anak/status) di ParentScreen, dan pemilih thread Chat (grup
+ * keluarga/thread privat) di ParentScreen & ChildScreen.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun FilterDropdown(
+    modifier: Modifier = Modifier,
+    label: String,
+    selectedLabel: String,
+    options: List<Pair<String?, String>>,
+    onSelect: (String?) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }, modifier = modifier) {
+        OutlinedTextField(
+            value = selectedLabel,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(label) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable)
+        )
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            options.forEach { (value, optionLabel) ->
+                DropdownMenuItem(text = { Text(optionLabel) }, onClick = { onSelect(value); expanded = false })
+            }
         }
     }
 }

@@ -8,7 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -36,7 +36,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.keluargakendali.ui.AppViewModel
 import com.keluargakendali.ui.AuthScreen
 import com.keluargakendali.ui.ChildScreen
+import com.keluargakendali.ui.ChildSettingsDialog
 import com.keluargakendali.ui.ParentScreen
+import com.keluargakendali.ui.ParentSettingsDialog
 import com.keluargakendali.ui.PasswordField
 import com.keluargakendali.ui.theme.PactioTheme
 import kotlinx.coroutines.delay
@@ -69,8 +71,12 @@ private fun PactioApp() {
     // ChildLogoutDialog & AppViewModel.confirmChildLogout. Dialognya ditutup otomatis kalau
     // logout benar-benar terjadi (currentUser jadi null).
     var showChildLogoutDialog by remember { mutableStateOf(false) }
+    var showSettings by remember { mutableStateOf(false) }
     LaunchedEffect(state.currentUser) {
-        if (state.currentUser == null) showChildLogoutDialog = false
+        if (state.currentUser == null) {
+            showChildLogoutDialog = false
+            showSettings = false
+        }
     }
 
     // Poll berkala selagi ada yang login - supaya tugas baru dari orang tua, atau tugas
@@ -94,8 +100,12 @@ private fun PactioApp() {
                     TopAppBar(
                         title = { Text("Pactio") },
                         actions = {
-                            IconButton(onClick = viewModel::refresh) {
-                                Icon(Icons.Default.Refresh, contentDescription = "Segarkan data")
+                            // Pengaturan dipindah ke sini (bukan tab lagi - lihat ParentScreen/ChildScreen)
+                            // supaya tab utama tetap muat satu baris tanpa digulir. Sengaja di sebelah
+                            // kiri "Keluar", bukan tombol refresh manual - data sudah disegarkan otomatis
+                            // lewat polling berkala (lihat AppViewModel.silentRefresh di bawah).
+                            IconButton(onClick = { showSettings = true }) {
+                                Icon(Icons.Default.Settings, contentDescription = "Pengaturan")
                             }
                             TextButton(onClick = {
                                 if (state.currentUser?.role == "child") showChildLogoutDialog = true else viewModel.logout()
@@ -119,11 +129,9 @@ private fun PactioApp() {
 
                     state.currentUser?.role == "parent" -> ParentScreen(
                         state = state,
-                        onAddChild = viewModel::addChild,
-                        onDeleteChild = viewModel::deleteChild,
-                        onCreateTask = viewModel::createTask,
                         onDecide = viewModel::decideTask,
                         onSetLock = { childId, enabled -> viewModel.setChildLock(childId, enabled) },
+                        onCreateTask = viewModel::createTask,
                         onDismissMessage = viewModel::dismissMessages,
                         onRefreshChatUnread = viewModel::refreshChatUnread
                     )
@@ -151,6 +159,19 @@ private fun PactioApp() {
                 onDismiss = { showChildLogoutDialog = false },
                 onConfirm = { password, onWrongPassword -> viewModel.confirmChildLogout(password, onWrongPassword) }
             )
+        }
+
+        if (showSettings) {
+            when (state.currentUser?.role) {
+                "parent" -> ParentSettingsDialog(
+                    children = state.children,
+                    loading = state.loading,
+                    onAddChild = viewModel::addChild,
+                    onDeleteChild = viewModel::deleteChild,
+                    onDismiss = { showSettings = false }
+                )
+                "child" -> ChildSettingsDialog(state = state, onDismiss = { showSettings = false })
+            }
         }
     }
 }
