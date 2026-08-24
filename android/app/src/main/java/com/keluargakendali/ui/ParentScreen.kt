@@ -26,6 +26,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.ErrorOutline
@@ -43,6 +44,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -94,110 +96,118 @@ fun ParentScreen(
     var childFilter by remember { mutableStateOf<String?>(null) }
     var detailTask by remember { mutableStateOf<TaskDto?>(null) }
 
-    Column(Modifier.fillMaxSize().padding(16.dp)) {
-        state.errorMessage?.let {
-            ErrorBanner(it, onDismissMessage)
-            Spacer(Modifier.height(12.dp))
-        }
+    Box(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize().padding(16.dp)) {
+            state.errorMessage?.let {
+                ErrorBanner(it, onDismissMessage)
+                Spacer(Modifier.height(12.dp))
+            }
 
-        // Satu kartu ringkas: identitas keluarga, kunci per anak, dan aksi utama.
-        // Tambah/hapus profil anak dipindah ke Pengaturan (ikon gerigi) - jarang dipakai,
-        // tidak perlu selalu terlihat di layar utama.
-        Card(
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            shape = RoundedCornerShape(22.dp)
-        ) {
-            Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text(state.family?.name ?: "Keluarga", fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.titleMedium)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (state.family?.code != null) {
-                            Text(
-                                state.family.code,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(999.dp))
-                                    .background(MaterialTheme.colorScheme.primaryContainer)
-                                    .padding(horizontal = 12.dp, vertical = 6.dp)
-                            )
-                        }
-                        IconButton(onClick = { showSettings = true }) {
-                            Icon(Icons.Default.Settings, contentDescription = "Pengaturan")
+            // Satu kartu ringkas: identitas keluarga, kunci per anak, dan aksi utama.
+            // Tambah/hapus profil anak dipindah ke Pengaturan (ikon gerigi) - jarang dipakai,
+            // tidak perlu selalu terlihat di layar utama.
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(22.dp)
+            ) {
+                Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text(state.family?.name ?: "Keluarga", fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.titleMedium)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (state.family?.code != null) {
+                                Text(
+                                    state.family.code,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(999.dp))
+                                        .background(MaterialTheme.colorScheme.primaryContainer)
+                                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                                )
+                            }
+                            IconButton(onClick = { showSettings = true }) {
+                                Icon(Icons.Default.Settings, contentDescription = "Pengaturan")
+                            }
                         }
                     }
-                }
 
-                if (state.children.isEmpty()) {
-                    Text(
-                        "Belum ada profil anak. Tambah lewat Pengaturan.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                } else {
-                    LockSection(
-                        children = state.children,
-                        expanded = lockSectionExpanded,
-                        onToggleExpanded = { lockSectionExpanded = !lockSectionExpanded },
-                        loading = state.loading,
-                        onSetLock = onSetLock
-                    )
+                    if (state.children.isEmpty()) {
+                        Text(
+                            "Belum ada profil anak. Tambah lewat Pengaturan.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        LockSection(
+                            children = state.children,
+                            expanded = lockSectionExpanded,
+                            onToggleExpanded = { lockSectionExpanded = !lockSectionExpanded },
+                            loading = state.loading,
+                            onSetLock = onSetLock
+                        )
+                    }
                 }
+            }
 
-                Button(
-                    onClick = { showCreateTask = true },
-                    enabled = state.children.isNotEmpty(),
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("Buat Tugas") }
+            Spacer(Modifier.height(16.dp))
+            Text("Menunggu persetujuan", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
+            val waiting = state.tasks.filter { it.status == "submitted" }
+            if (waiting.isEmpty()) {
+                Text("Belum ada tugas yang dikirim anak.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    items(waiting, key = { it.id }) { task ->
+                        WaitingTaskCard(
+                            task = task,
+                            childName = state.children.find { it.id == task.childId }?.name,
+                            token = state.token,
+                            loading = state.loading,
+                            onDecide = onDecide
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+            Text("Semua tugas", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
+            TaskFilterRow(
+                children = state.children,
+                selectedChildId = childFilter,
+                onSelectChild = { childFilter = it },
+                selectedStatus = statusFilter,
+                onSelectStatus = { statusFilter = it }
+            )
+            Spacer(Modifier.height(8.dp))
+            val filteredTasks = state.tasks.filter { task ->
+                (statusFilter == null || task.status == statusFilter) && (childFilter == null || task.childId == childFilter)
+            }
+            if (filteredTasks.isEmpty()) {
+                Text("Tidak ada tugas yang cocok dengan filter.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(filteredTasks, key = { it.id }) { task ->
+                        TaskSummaryCard(
+                            task = task,
+                            childName = state.children.find { it.id == task.childId }?.name,
+                            onClick = { detailTask = task }
+                        )
+                    }
+                }
             }
         }
 
-        Spacer(Modifier.height(16.dp))
-        Text("Menunggu persetujuan", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(8.dp))
-        val waiting = state.tasks.filter { it.status == "submitted" }
-        if (waiting.isEmpty()) {
-            Text("Belum ada tugas yang dikirim anak.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(waiting, key = { it.id }) { task ->
-                    WaitingTaskCard(
-                        task = task,
-                        childName = state.children.find { it.id == task.childId }?.name,
-                        token = state.token,
-                        loading = state.loading,
-                        onDecide = onDecide
-                    )
-                }
-            }
-        }
-
-        Spacer(Modifier.height(16.dp))
-        Text("Semua tugas", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(8.dp))
-        TaskFilterRow(
-            children = state.children,
-            selectedChildId = childFilter,
-            onSelectChild = { childFilter = it },
-            selectedStatus = statusFilter,
-            onSelectStatus = { statusFilter = it }
-        )
-        Spacer(Modifier.height(8.dp))
-        val filteredTasks = state.tasks.filter { task ->
-            (statusFilter == null || task.status == statusFilter) && (childFilter == null || task.childId == childFilter)
-        }
-        if (filteredTasks.isEmpty()) {
-            Text("Tidak ada tugas yang cocok dengan filter.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                items(filteredTasks, key = { it.id }) { task ->
-                    TaskSummaryCard(
-                        task = task,
-                        childName = state.children.find { it.id == task.childId }?.name,
-                        onClick = { detailTask = task }
-                    )
-                }
+        // Tombol "Buat Tugas" jadi FAB bulat "+" (bukan tombol lebar penuh) - lebih ringkas,
+        // konsisten dengan pola aksi utama di aplikasi mobile pada umumnya. Disembunyikan
+        // kalau belum ada profil anak (FloatingActionButton M3 tidak punya state disabled) -
+        // parent diarahkan ke Pengaturan dulu lewat pesan di kartu atas.
+        if (state.children.isNotEmpty()) {
+            FloatingActionButton(
+                onClick = { showCreateTask = true },
+                modifier = Modifier.align(Alignment.BottomEnd).padding(20.dp)
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "Buat Tugas")
             }
         }
     }
