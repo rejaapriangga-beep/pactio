@@ -611,6 +611,9 @@ async function route(req, res) {
   // Console (bagian "App content" -> "Privacy policy"), jadi disajikan sebagai halaman statis
   // biasa (tanpa login) di domain yang sama, bukan dokumen terpisah di tempat lain.
   if (req.method === "GET" && pathname === "/privacy") { if (serveStatic(res, "privacy.html")) return; }
+  // Halaman publik "cara minta hapus akun/data" - wajib punya URL publik untuk submit ke Google
+  // Play Console (bagian "Data safety" -> "Delete account URL"), sama polanya dengan /privacy.
+  if (req.method === "GET" && pathname === "/delete-account") { if (serveStatic(res, "delete-account.html")) return; }
 
   if (req.method === "GET" && pathname === "/health") return send(res, 200, { ok: true });
 
