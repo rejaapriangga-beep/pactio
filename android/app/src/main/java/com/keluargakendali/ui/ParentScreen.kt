@@ -199,8 +199,6 @@ fun ParentSettingsDialog(
     children: List<UserDto>,
     activityLog: List<ActivityLogEntryDto>,
     loading: Boolean,
-    token: String?,
-    familyName: String?,
     onDeleteChild: (childId: String) -> Unit,
     onResetPin: (childId: String, pin: String) -> Unit,
     onDismiss: () -> Unit
@@ -250,11 +248,6 @@ fun ParentSettingsDialog(
                     fontStyle = FontStyle.Italic,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-
-                Spacer(Modifier.height(20.dp))
-                HorizontalDivider()
-                Spacer(Modifier.height(12.dp))
-                if (token != null) BackupSection(token = token, familyName = familyName)
 
                 Spacer(Modifier.height(20.dp))
                 HorizontalDivider()
@@ -310,29 +303,11 @@ fun ParentSettingsDialog(
  * di PactioApi.createBackup/server.js. Alurnya: password dulu -> panggil API -> baru buka
  * pemilih lokasi simpan (CreateDocument) begitu byte-nya sudah siap ditulis.
  *
- * State & alurnya dipusatkan di BackupFlow supaya bisa dipicu dari DUA tempat dengan tampilan
- * beda: bagian lengkap di dalam dialog Pengaturan (BackupSection) DAN ikon cepat langsung di
- * TopAppBar dashboard (BackupIconButton, gaya "akses cepat" seperti aplikasi DompetDigitalKu).
+ * Cuma satu pemicu: ikon di TopAppBar dashboard (BackupIconButton) - dulu ada juga versi kartu
+ * lengkap di dalam dialog Pengaturan, tapi dihapus atas permintaan pengguna (duplikat, ikon
+ * TopAppBar sudah cukup). BackupFlow tetap terpisah dari BackupIconButton (bukan digabung
+ * langsung) supaya gampang ditambah pemicu lain lagi nanti kalau perlu.
  */
-@Composable
-private fun BackupSection(token: String, familyName: String?) {
-    BackupFlow(token = token, familyName = familyName) { onClick, loading ->
-        Column {
-            Text(stringResource(R.string.heading_backup_data), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-            Text(
-                stringResource(R.string.desc_backup),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(Modifier.height(8.dp))
-            OutlinedButton(onClick = onClick, modifier = Modifier.fillMaxWidth(), enabled = !loading) {
-                Text(stringResource(R.string.action_download_backup_encrypted))
-            }
-        }
-    }
-}
-
-/** Akses cepat backup langsung dari TopAppBar - lihat catatan BackupSection di atas. */
 @Composable
 fun BackupIconButton(token: String, familyName: String?) {
     BackupFlow(token = token, familyName = familyName) { onClick, loading ->

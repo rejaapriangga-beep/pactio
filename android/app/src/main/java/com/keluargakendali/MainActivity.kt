@@ -10,11 +10,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DarkMode
-import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -86,11 +88,11 @@ private fun PactioApp() {
     // Ganti bahasa BUTUH recreate Activity - attachBaseContext (lihat MainActivity) cuma
     // dibaca sekali saat Activity dibuat, jadi satu-satunya cara semua string resource yang
     // sudah kadung "ke-resolve" ikut berganti bahasa adalah dengan membuat ulang Activity-nya.
-    fun toggleLanguage() {
-        val next = if (SettingsStore.getLanguage(context) == "id") "en" else "id"
-        SettingsStore.setLanguage(context, next)
+    fun selectLanguage(language: String) {
+        SettingsStore.setLanguage(context, language)
         (context as? android.app.Activity)?.recreate()
     }
+    var showLanguageMenu by remember { mutableStateOf(false) }
 
     // Notifikasi sukses (bukan cuma error) untuk aksi seperti buat tugas, approve, dsb.
     LaunchedEffect(state.infoMessage) {
@@ -136,8 +138,20 @@ private fun PactioApp() {
                             // di TopAppBar dashboard, bukan ditumpuk di dalam Pengaturan, terinspirasi
                             // pola aplikasi lain (mis. DompetDigitalKu) yang menaruh toggle tema di
                             // header. Backup hanya relevan untuk orang tua (butuh token akses penuh).
-                            IconButton(onClick = { toggleLanguage() }) {
-                                Icon(Icons.Default.Language, contentDescription = "Ganti bahasa / Switch language")
+                            Box {
+                                IconButton(onClick = { showLanguageMenu = true }) {
+                                    Icon(Icons.Default.Translate, contentDescription = "Ganti bahasa / Switch language")
+                                }
+                                DropdownMenu(expanded = showLanguageMenu, onDismissRequest = { showLanguageMenu = false }) {
+                                    DropdownMenuItem(
+                                        text = { Text("Bahasa Indonesia") },
+                                        onClick = { showLanguageMenu = false; selectLanguage("id") }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("English") },
+                                        onClick = { showLanguageMenu = false; selectLanguage("en") }
+                                    )
+                                }
                             }
                             IconButton(onClick = {
                                 darkMode = !darkMode
@@ -223,8 +237,6 @@ private fun PactioApp() {
                     children = state.children,
                     activityLog = state.activityLog,
                     loading = state.loading,
-                    token = state.token,
-                    familyName = state.family?.name,
                     onDeleteChild = viewModel::deleteChild,
                     onResetPin = viewModel::resetChildPin,
                     onDismiss = { showSettings = false }
