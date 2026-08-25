@@ -33,10 +33,12 @@ android {
         applicationId = "id.my.timecraft"
         minSdk = 26
         targetSdk = 36
-        // Naik dari 1 - Play Console menolak versionCode yang sudah pernah dipakai di TRACK
-        // MANAPUN (Internal testing sudah pakai 1), setiap upload AAB baru ke track apa pun
-        // wajib versionCode yang belum pernah dipakai sebelumnya.
-        versionCode = 2
+        // Naik dari 1 -> 2 -> sekarang 5 (lompat beberapa nomor sekaligus, bukan cuma +1) -
+        // Play Console mengunci versionCode begitu satu file berhasil divalidasi di draft
+        // release MANA PUN (Internal testing, atau draft Closed testing yang sempat tersimpan
+        // otomatis), walau belum benar-benar dipublish. Melompat beberapa nomor mengurangi
+        // risiko kena "already been used" lagi dari draft lain yang mungkin masih tersisa.
+        versionCode = 5
         versionName = "0.1.0"
     }
 
