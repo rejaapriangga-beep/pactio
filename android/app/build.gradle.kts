@@ -23,7 +23,12 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.keluargakendali"
+        // applicationId (identitas unik di Play Store) SENGAJA dibedakan dari namespace di atas
+        // (com.keluargakendali, tetap dipakai sebagai nama package Kotlin/R class - AGP modern
+        // memisahkan keduanya, jadi ini TIDAK mengharuskan rename package di semua berkas .kt).
+        // Ini keputusan permanen - applicationId tidak bisa diubah lagi setelah upload pertama
+        // ke Play Console.
+        applicationId = "com.timecraft"
         minSdk = 26
         targetSdk = 36
         versionCode = 1
