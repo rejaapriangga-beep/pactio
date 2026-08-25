@@ -109,6 +109,34 @@ env var terbaca (token uji di atas memang bukan token Google asli). Kalau respon
 `{"error":"Login Google belum dikonfigurasi di server."}`, berarti `.env` belum terbaca —
 pastikan filenya ada di folder yang sama saat menjalankan `docker compose`.
 
+## 6. Update kode (setelah ada perbaikan/fitur baru)
+
+**PENTING:** folder build context di VPS (`~/KendaliKeluargaBackend/`, sejajar dengan
+`docker-compose.yml`) berisi salinan LANGSUNG `server.js`/`package.json`/`web/` di root-nya -
+BUKAN di dalam subfolder apa pun. Kalau di VPS ada juga folder `~/KendaliKeluargaBackend/pactio/`
+(clone git untuk `git pull`), itu HANYA sumber, bukan yang benar-benar dipakai `docker compose
+build` (lihat `build: .` di `docker-compose.yml` dan `COPY server.js ./` di `Dockerfile` - keduanya
+merujuk ke root folder ini, bukan ke `pactio/backend/` atau subfolder lain).
+
+```bash
+cd ~/KendaliKeluargaBackend/pactio
+git pull
+
+cd ~/KendaliKeluargaBackend
+cp pactio/backend/server.js ./server.js
+cp pactio/backend/package.json ./package.json
+rm -rf ./web && cp -r pactio/backend/web ./web
+
+sudo docker compose up -d --build
+```
+
+Verifikasi cepat bahwa image benar-benar pakai kode baru (ganti `NAMA_FUNGSI_BARU` dengan sesuatu
+yang pasti ada di commit terbaru):
+
+```bash
+sudo docker compose exec api grep -c NAMA_FUNGSI_BARU server.js
+```
+
 ## Penting sebelum penggunaan nyata
 
 Ini masih MVP dan belum layak menyimpan data anak di internet. Jangan gunakan untuk pengguna nyata sebelum token kedaluwarsa, rate limit, reset kredensial, audit log, database produksi, kebijakan privasi, penghapusan data, dan pengamanan unggah foto diterapkan.
