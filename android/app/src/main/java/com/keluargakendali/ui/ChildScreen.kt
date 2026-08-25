@@ -67,8 +67,10 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.keluargakendali.R
 import com.keluargakendali.data.EVIDENCE_MIME_EXT
 import com.keluargakendali.data.FAMILY_CHAT_THREAD_ID
 import com.keluargakendali.data.TaskDto
@@ -124,10 +126,10 @@ fun ChildScreen(
     // Pengaturan sengaja TIDAK ikut sebagai tab - dipindah jadi ikon gerigi di TopAppBar
     // (lihat MainActivity), tepat di sebelah kiri "Keluar", supaya 4 tab ini muat satu baris.
     val tabs = listOf(
-        TabItem("Dashboard", Icons.Default.Dashboard),
-        TabItem("Tugas", Icons.Default.Checklist),
-        TabItem("Chat", Icons.Default.Chat, badgeCount = state.chatUnreadTotal),
-        TabItem("Kunci", Icons.Default.Lock)
+        TabItem(stringResource(R.string.tab_dashboard), Icons.Default.Dashboard),
+        TabItem(stringResource(R.string.tab_tasks), Icons.Default.Checklist),
+        TabItem(stringResource(R.string.tab_chat), Icons.Default.Chat, badgeCount = state.chatUnreadTotal),
+        TabItem(stringResource(R.string.tab_lock), Icons.Default.Lock)
     )
 
     Column(Modifier.fillMaxSize()) {
@@ -193,11 +195,11 @@ private fun ChildDashboardTab(state: UiState, onGunakanWaktu: () -> Unit) {
         val menunggu = state.tasks.count { it.status == "submitted" }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ChildStatCard(
-                modifier = Modifier.weight(1f), label = "Belum Dikirim", value = belumDikirim.toString(),
+                modifier = Modifier.weight(1f), label = stringResource(R.string.stat_not_submitted), value = belumDikirim.toString(),
                 icon = Icons.Default.Checklist, accentColor = MaterialTheme.colorScheme.primary
             )
             ChildStatCard(
-                modifier = Modifier.weight(1f), label = "Menunggu Approval", value = menunggu.toString(),
+                modifier = Modifier.weight(1f), label = stringResource(R.string.stat_pending_approval), value = menunggu.toString(),
                 icon = Icons.Default.HourglassTop, accentColor = MaterialTheme.colorScheme.secondary
             )
         }
@@ -216,11 +218,11 @@ private fun ChildDashboardTab(state: UiState, onGunakanWaktu: () -> Unit) {
 private fun ChildIncompleteTasksCard(incomplete: List<TaskDto>) {
     Card {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
-            Text("Tugas Belum Selesai", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
+            Text(stringResource(R.string.heading_incomplete_tasks), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(6.dp))
             if (incomplete.isEmpty()) {
                 Text(
-                    "Semua tugas sudah selesai. Mantap!",
+                    stringResource(R.string.empty_all_tasks_done_child),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -261,7 +263,7 @@ private fun ChildStatCard(modifier: Modifier = Modifier, label: String, value: S
 private fun ChildTaskListTab(state: UiState, onKirim: (TaskDto) -> Unit) {
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         if (state.tasks.isEmpty()) {
-            Text("Belum ada tugas dari orang tua.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.empty_no_tasks_from_parent), color = MaterialTheme.colorScheme.onSurfaceVariant)
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(state.tasks, key = { it.id }) { task ->
@@ -287,8 +289,8 @@ private fun ChildChatTab(
     val myId = state.currentUser?.id ?: return
     val activeThreadId = selectedThreadId ?: FAMILY_CHAT_THREAD_ID
     val options = listOf(
-        FAMILY_CHAT_THREAD_ID to "Keluarga (Semua)",
-        myId to "Pribadi dengan Orang Tua"
+        FAMILY_CHAT_THREAD_ID to stringResource(R.string.label_family_all),
+        myId to stringResource(R.string.label_private_with_parent)
     )
     Column(Modifier.fillMaxSize()) {
         ChatSubTabs(
@@ -305,7 +307,7 @@ private fun ChildChatTab(
 @Composable
 private fun ChildLockTab(hasOverlay: Boolean, onOpenSettings: () -> Unit) {
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Kunci Perangkat", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Text(stringResource(R.string.heading_device_lock), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         Card(
             colors = CardDefaults.cardColors(
                 containerColor = if (hasOverlay) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.secondaryContainer
@@ -313,28 +315,24 @@ private fun ChildLockTab(hasOverlay: Boolean, onOpenSettings: () -> Unit) {
         ) {
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    if (hasOverlay) "Izin diberikan" else "Izin belum diberikan",
+                    if (hasOverlay) stringResource(R.string.label_permission_granted) else stringResource(R.string.label_permission_not_granted),
                     fontWeight = FontWeight.Bold,
                     color = if (hasOverlay) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onSecondaryContainer
                 )
                 Text(
-                    if (hasOverlay) {
-                        "Orang tua bisa mengunci akses ke aplikasi lain kalau perlu. Kamu bisa mencabut izin ini kapan saja lewat Pengaturan HP."
-                    } else {
-                        "Supaya orang tua bisa mengunci akses aplikasi lain kalau perlu, izinkan akses berikut lewat Pengaturan HP. Bisa dicabut kapan saja."
-                    },
+                    if (hasOverlay) stringResource(R.string.desc_lock_permission_granted) else stringResource(R.string.desc_lock_permission_not_granted),
                     style = MaterialTheme.typography.bodySmall,
                     color = if (hasOverlay) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onSecondaryContainer
                 )
                 if (!hasOverlay) {
                     Button(onClick = onOpenSettings, modifier = Modifier.fillMaxWidth()) {
-                        Text("Izinkan Tampil di Atas Aplikasi Lain")
+                        Text(stringResource(R.string.action_allow_overlay))
                     }
                 }
             }
         }
         Text(
-            "Kunci/buka kunci perangkat hanya bisa diatur oleh orang tua. Kamu tetap bisa memakai saldo menit hadiah untuk membuka akses sementara lewat tab Dashboard.",
+            stringResource(R.string.desc_lock_child_note),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -350,26 +348,26 @@ private fun ChildLockTab(hasOverlay: Boolean, onOpenSettings: () -> Unit) {
 fun ChildSettingsDialog(state: UiState, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Pengaturan") },
+        title = { Text(stringResource(R.string.app_settings)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Card {
                     Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("Nama", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(R.string.label_name), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(state.currentUser?.name ?: "-", fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.height(8.dp))
-                        Text("Keluarga", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(R.string.label_family_fallback), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(state.family?.name ?: "-", fontWeight = FontWeight.SemiBold)
                     }
                 }
                 Text(
-                    "Untuk keluar dari akun ini, gunakan tombol \"Keluar\" di pojok kanan atas.",
+                    stringResource(R.string.desc_logout_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Tutup") } }
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_close)) } }
     )
 }
 
@@ -406,22 +404,23 @@ private fun AccessBalanceCard(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Schedule, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary)
                 Spacer(Modifier.width(8.dp))
-                Text("Saldo Akses Hadiah", fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onPrimary)
+                Text(stringResource(R.string.heading_access_balance), fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onPrimary)
             }
             Text(
-                "$balanceMinutes menit",
+                stringResource(R.string.count_minutes_short, balanceMinutes),
                 style = MaterialTheme.typography.headlineSmall,
                 color = MaterialTheme.colorScheme.onPrimary
             )
             Text(
-                "dari $approvedTaskCount tugas disetujui",
+                stringResource(R.string.label_from_approved_tasks, approvedTaskCount),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onPrimary
             )
             if (unlockActive) {
                 val totalSeconds = remainingMs / 1000
+                val timeText = "%d:%02d".format(totalSeconds / 60, totalSeconds % 60)
                 Text(
-                    "Akses aktif · sisa %d:%02d".format(totalSeconds / 60, totalSeconds % 60),
+                    stringResource(R.string.label_access_active_remaining, timeText),
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onPrimary
@@ -436,7 +435,7 @@ private fun AccessBalanceCard(
                     contentColor = MaterialTheme.colorScheme.primary
                 ),
                 modifier = Modifier.fillMaxWidth()
-            ) { Text(if (unlockActive) "Tambah Waktu" else "Gunakan Waktu") }
+            ) { Text(if (unlockActive) stringResource(R.string.action_add_time) else stringResource(R.string.action_use_time)) }
         }
     }
 }
@@ -455,27 +454,27 @@ private fun RedeemMinutesDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Gunakan Waktu") },
+        title = { Text(stringResource(R.string.action_use_time)) },
         text = {
             Column {
                 Text(
-                    "Saldo kamu $balanceMinutes menit. Berapa menit mau dipakai sekarang? Sisanya tetap tersimpan.",
+                    stringResource(R.string.desc_redeem_balance, balanceMinutes),
                     style = MaterialTheme.typography.bodySmall
                 )
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = input,
                     onValueChange = { input = it.filter { c -> c.isDigit() } },
-                    label = { Text("Menit") },
+                    label = { Text(stringResource(R.string.label_minutes)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
         },
         confirmButton = {
-            Button(onClick = { minutes?.let(onConfirm) }, enabled = !loading && valid) { Text("Gunakan") }
+            Button(onClick = { minutes?.let(onConfirm) }, enabled = !loading && valid) { Text(stringResource(R.string.action_use)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Batal") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
     )
 }
 
@@ -492,15 +491,15 @@ private fun ChildTaskCard(task: TaskDto, loading: Boolean, onKirim: () -> Unit) 
                 Text(task.description, style = MaterialTheme.typography.bodyMedium)
                 Spacer(Modifier.height(8.dp))
             }
-            Text("Hadiah: ${task.rewardMinutes} menit akses", color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.label_reward_minutes, task.rewardMinutes), color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Bold)
             if (task.status == "rejected" && !task.decisionNote.isNullOrBlank()) {
                 Spacer(Modifier.height(6.dp))
-                Text("Catatan orang tua: ${task.decisionNote}", style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.label_parent_note_colon, task.decisionNote), style = MaterialTheme.typography.bodySmall)
             }
             if (task.status == "assigned" || task.status == "rejected") {
                 Spacer(Modifier.height(12.dp))
                 Button(onClick = onKirim, enabled = !loading, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
-                    Text("Kirim sebagai selesai")
+                    Text(stringResource(R.string.action_submit_as_done))
                 }
             }
         }
@@ -529,24 +528,25 @@ private fun queryDisplayName(context: Context, uri: Uri): String? {
  * bukan gagal diam-diam atau baru ditolak di server.
  */
 private fun Uri.readAsAttachment(context: Context, onError: (String) -> Unit): PendingAttachment? {
+    // Fungsi biasa (bukan @Composable) - stringResource() tidak berlaku, pakai context.getString().
     val mime = context.contentResolver.getType(this)
     if (mime == null || !EVIDENCE_MIME_EXT.containsKey(mime)) {
-        onError("Jenis berkas tidak didukung (harus JPEG, PNG, PDF, Word, Excel, PowerPoint, atau TXT).")
+        onError(context.getString(R.string.error_unsupported_file_type))
         return null
     }
     val bytes = context.contentResolver.openInputStream(this)?.use { it.readBytes() }
     if (bytes == null || bytes.isEmpty()) {
-        onError("Berkas tidak dapat dibaca.")
+        onError(context.getString(R.string.error_file_unreadable))
         return null
     }
     if (bytes.size > MAX_EVIDENCE_FILE_BYTES) {
-        onError("Berkas terlalu besar (maksimal 5MB per berkas).")
+        onError(context.getString(R.string.error_file_too_large))
         return null
     }
     val base64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
     val isImage = mime == "image/jpeg" || mime == "image/png"
     val bitmap = if (isImage) BitmapFactory.decodeByteArray(bytes, 0, bytes.size) else null
-    val label = queryDisplayName(context, this) ?: "Berkas"
+    val label = queryDisplayName(context, this) ?: context.getString(R.string.label_file_fallback)
     return PendingAttachment(dataUri = "data:$mime;base64,$base64", previewBitmap = bitmap, label = label)
 }
 
@@ -573,7 +573,8 @@ private fun SubmitEvidenceDialog(
     val takePicture = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap ->
         AppForegroundState.clearSuppression()
         if (bitmap != null && attachments.size < MAX_EVIDENCE_FILES) {
-            attachments = attachments + PendingAttachment(bitmap.toJpegDataUri(), bitmap, "Foto")
+            // Callback ActivityResultLauncher, bukan konteks @Composable - pakai context.getString().
+            attachments = attachments + PendingAttachment(bitmap.toJpegDataUri(), bitmap, context.getString(R.string.label_photo_camera))
             pickError = null
         }
     }
@@ -590,24 +591,24 @@ private fun SubmitEvidenceDialog(
         for (uri in toRead) {
             uri.readAsAttachment(context) { message -> error = message }?.let { newAttachments.add(it) }
         }
-        if (uris.size > room) error = "Maksimal $MAX_EVIDENCE_FILES berkas bukti."
+        if (uris.size > room) error = context.getString(R.string.error_max_evidence_files, MAX_EVIDENCE_FILES)
         attachments = attachments + newAttachments
         pickError = error
     }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Kirim \"${task.title}\" sebagai selesai") },
+        title = { Text(stringResource(R.string.title_submit_task, task.title)) },
         text = {
             Column {
                 Text(
-                    "Ceritakan apa yang sudah kamu lakukan, dan lampirkan foto/dokumen sebagai bukti (opsional, sampai $MAX_EVIDENCE_FILES berkas).",
+                    stringResource(R.string.desc_submit_evidence, MAX_EVIDENCE_FILES),
                     style = MaterialTheme.typography.bodySmall
                 )
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     evidence, { evidence = it },
-                    label = { Text("Bukti selesai (teks)") },
+                    label = { Text(stringResource(R.string.label_evidence_text)) },
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(Modifier.height(12.dp))
@@ -633,7 +634,7 @@ private fun SubmitEvidenceDialog(
                 }
                 if (atLimit) {
                     Text(
-                        "Maksimal $MAX_EVIDENCE_FILES berkas tercapai.",
+                        stringResource(R.string.hint_max_evidence_reached, MAX_EVIDENCE_FILES),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -651,7 +652,7 @@ private fun SubmitEvidenceDialog(
                     ) {
                         Icon(Icons.Default.PhotoCamera, contentDescription = null)
                         Spacer(Modifier.width(4.dp))
-                        Text("Ambil Foto")
+                        Text(stringResource(R.string.action_take_photo))
                     }
                     OutlinedButton(
                         onClick = {
@@ -663,7 +664,7 @@ private fun SubmitEvidenceDialog(
                     ) {
                         Icon(Icons.Default.AttachFile, contentDescription = null)
                         Spacer(Modifier.width(4.dp))
-                        Text("Pilih Berkas")
+                        Text(stringResource(R.string.action_pick_file))
                     }
                 }
             }
@@ -672,9 +673,9 @@ private fun SubmitEvidenceDialog(
             Button(
                 onClick = { onSubmit(evidence.trim(), attachments.map { it.dataUri }) },
                 enabled = !loading
-            ) { Text("Kirim") }
+            ) { Text(stringResource(R.string.action_send)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Batal") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
     )
 }
 
@@ -707,7 +708,7 @@ private fun AttachmentThumbnail(attachment: PendingAttachment, onRemove: () -> U
         ) {
             Icon(
                 Icons.Default.Close,
-                contentDescription = "Hapus lampiran",
+                contentDescription = stringResource(R.string.cd_remove_attachment),
                 tint = MaterialTheme.colorScheme.onError,
                 modifier = Modifier.size(14.dp)
             )

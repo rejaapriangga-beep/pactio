@@ -153,4 +153,43 @@
     <string name="label_task_title">Task title</string>
     <string name="label_description_optional">Description (optional)</string>
     <string name="label_reward_minutes_field">Reward (minutes, 1-240)</string>
+
+    <!-- ChildScreen.kt -->
+    <string name="stat_not_submitted">Not Submitted</string>
+    <string name="empty_all_tasks_done_child">All tasks are done. Nice work!</string>
+    <string name="empty_no_tasks_from_parent">No tasks from your parent yet.</string>
+    <string name="label_family_all">Family (All)</string>
+    <string name="label_private_with_parent">Private with Parent</string>
+    <string name="heading_device_lock">Device Lock</string>
+    <string name="label_permission_granted">Permission granted</string>
+    <string name="label_permission_not_granted">Permission not granted yet</string>
+    <string name="desc_lock_permission_granted">A parent can lock access to other apps when needed. You can revoke this permission any time from your phone\'s Settings.</string>
+    <string name="desc_lock_permission_not_granted">So a parent can lock access to other apps when needed, allow the following access from your phone\'s Settings. It can be revoked any time.</string>
+    <string name="action_allow_overlay">Allow Display Over Other Apps</string>
+    <string name="desc_lock_child_note">Locking/unlocking the device can only be set by a parent. You can still use your reward minutes to unlock access temporarily from the Dashboard tab.</string>
+    <string name="label_name">Name</string>
+    <string name="desc_logout_hint">To sign out of this account, use the \"Log out\" button at the top right.</string>
+    <string name="heading_access_balance">Reward Access Balance</string>
+    <string name="label_from_approved_tasks">from %1$d approved task(s)</string>
+    <string name="label_access_active_remaining">Access active · %1$s left</string>
+    <string name="action_add_time">Add Time</string>
+    <string name="action_use_time">Use Time</string>
+    <string name="desc_redeem_balance">Your balance is %1$d minutes. How many minutes do you want to use now? The rest stays saved.</string>
+    <string name="label_minutes">Minutes</string>
+    <string name="action_use">Use</string>
+    <string name="action_submit_as_done">Submit as done</string>
+    <string name="error_unsupported_file_type">Unsupported file type (must be JPEG, PNG, PDF, Word, Excel, PowerPoint, or TXT).</string>
+    <string name="error_file_unreadable">The file couldn\'t be read.</string>
+    <string name="error_file_too_large">File too large (5MB max per file).</string>
+    <string name="label_file_fallback">File</string>
+    <string name="title_submit_task">Submit \"%1$s\" as done</string>
+    <string name="desc_submit_evidence">Tell us what you did, and attach a photo/document as evidence (optional, up to %1$d files).</string>
+    <string name="label_evidence_text">Evidence (text)</string>
+    <string name="error_max_evidence_files">%1$d evidence files max.</string>
+    <string name="hint_max_evidence_reached">%1$d file limit reached.</string>
+    <string name="action_take_photo">Take Photo</string>
+    <string name="action_pick_file">Pick File</string>
+    <string name="action_send">Send</string>
+    <string name="cd_remove_attachment">Remove attachment</string>
+    <string name="label_photo_camera">Photo</string>
 </resources>

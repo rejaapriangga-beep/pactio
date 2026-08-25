@@ -159,4 +159,43 @@
     <string name="label_task_title">Judul tugas</string>
     <string name="label_description_optional">Deskripsi (opsional)</string>
     <string name="label_reward_minutes_field">Hadiah (menit, 1-240)</string>
+
+    <!-- ChildScreen.kt -->
+    <string name="stat_not_submitted">Belum Dikirim</string>
+    <string name="empty_all_tasks_done_child">Semua tugas sudah selesai. Mantap!</string>
+    <string name="empty_no_tasks_from_parent">Belum ada tugas dari orang tua.</string>
+    <string name="label_family_all">Keluarga (Semua)</string>
+    <string name="label_private_with_parent">Pribadi dengan Orang Tua</string>
+    <string name="heading_device_lock">Kunci Perangkat</string>
+    <string name="label_permission_granted">Izin diberikan</string>
+    <string name="label_permission_not_granted">Izin belum diberikan</string>
+    <string name="desc_lock_permission_granted">Orang tua bisa mengunci akses ke aplikasi lain kalau perlu. Kamu bisa mencabut izin ini kapan saja lewat Pengaturan HP.</string>
+    <string name="desc_lock_permission_not_granted">Supaya orang tua bisa mengunci akses aplikasi lain kalau perlu, izinkan akses berikut lewat Pengaturan HP. Bisa dicabut kapan saja.</string>
+    <string name="action_allow_overlay">Izinkan Tampil di Atas Aplikasi Lain</string>
+    <string name="desc_lock_child_note">Kunci/buka kunci perangkat hanya bisa diatur oleh orang tua. Kamu tetap bisa memakai saldo menit hadiah untuk membuka akses sementara lewat tab Dashboard.</string>
+    <string name="label_name">Nama</string>
+    <string name="desc_logout_hint">Untuk keluar dari akun ini, gunakan tombol \"Keluar\" di pojok kanan atas.</string>
+    <string name="heading_access_balance">Saldo Akses Hadiah</string>
+    <string name="label_from_approved_tasks">dari %1$d tugas disetujui</string>
+    <string name="label_access_active_remaining">Akses aktif · sisa %1$s</string>
+    <string name="action_add_time">Tambah Waktu</string>
+    <string name="action_use_time">Gunakan Waktu</string>
+    <string name="desc_redeem_balance">Saldo kamu %1$d menit. Berapa menit mau dipakai sekarang? Sisanya tetap tersimpan.</string>
+    <string name="label_minutes">Menit</string>
+    <string name="action_use">Gunakan</string>
+    <string name="action_submit_as_done">Kirim sebagai selesai</string>
+    <string name="error_unsupported_file_type">Jenis berkas tidak didukung (harus JPEG, PNG, PDF, Word, Excel, PowerPoint, atau TXT).</string>
+    <string name="error_file_unreadable">Berkas tidak dapat dibaca.</string>
+    <string name="error_file_too_large">Berkas terlalu besar (maksimal 5MB per berkas).</string>
+    <string name="label_file_fallback">Berkas</string>
+    <string name="title_submit_task">Kirim \"%1$s\" sebagai selesai</string>
+    <string name="desc_submit_evidence">Ceritakan apa yang sudah kamu lakukan, dan lampirkan foto/dokumen sebagai bukti (opsional, sampai %1$d berkas).</string>
+    <string name="label_evidence_text">Bukti selesai (teks)</string>
+    <string name="error_max_evidence_files">Maksimal %1$d berkas bukti.</string>
+    <string name="hint_max_evidence_reached">Maksimal %1$d berkas tercapai.</string>
+    <string name="action_take_photo">Ambil Foto</string>
+    <string name="action_pick_file">Pilih Berkas</string>
+    <string name="action_send">Kirim</string>
+    <string name="cd_remove_attachment">Hapus lampiran</string>
+    <string name="label_photo_camera">Foto</string>
 </resources>
