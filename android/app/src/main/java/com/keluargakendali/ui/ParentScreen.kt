@@ -671,7 +671,7 @@ private fun DashboardLockedDialog(children: List<UserDto>, loading: Boolean, onS
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(child.name, fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(R.string.label_device_of_child, child.name), fontWeight = FontWeight.SemiBold)
                             OutlinedButton(onClick = { onSetLock(child.id, false) }, enabled = !loading) { Text(stringResource(R.string.action_unlock)) }
                         }
                     }
@@ -967,7 +967,7 @@ private fun ParentLockTab(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(child.name, fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(R.string.label_device_of_child, child.name), fontWeight = FontWeight.SemiBold)
                             Switch(
                                 checked = child.lockModeEnabled,
                                 onCheckedChange = { onSetLock(child.id, it) },

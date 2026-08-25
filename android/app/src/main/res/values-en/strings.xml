@@ -122,6 +122,7 @@
     <string name="label_none_locked">Nothing is locked</string>
     <string name="count_locked_of_total">%1$d of %2$d children locked</string>
     <string name="label_child_singular">Child</string>
+    <string name="label_device_of_child">%1$s\'s Device</string>
 
     <!-- ParentScreen.kt: Kunci, WaitingTaskCard, dokumen bukti -->
     <string name="action_add_child">+ Add Child</string>

@@ -128,6 +128,9 @@
     <string name="label_none_locked">Tidak ada yang dikunci</string>
     <string name="count_locked_of_total">%1$d dari %2$d anak dikunci</string>
     <string name="label_child_singular">Anak</string>
+    <!-- Nama anak di daftar toggle kunci perangkat - diberi awalan "Perangkat" karena yang
+         dikunci/dibuka sebenarnya perangkat anak itu, bukan anaknya sendiri. -->
+    <string name="label_device_of_child">Perangkat %1$s</string>
 
     <!-- ParentScreen.kt: Kunci, WaitingTaskCard, dokumen bukti -->
     <string name="action_add_child">+ Tambah Anak</string>
