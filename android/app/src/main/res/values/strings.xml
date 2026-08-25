@@ -215,4 +215,28 @@
     <string name="cd_chat_photo">Foto chat</string>
     <string name="label_photo_unavailable">Foto tidak tersedia</string>
     <string name="cd_chat_photo_preview">Pratinjau foto chat</string>
+
+    <!-- DeviceLockService.kt (bukan Compose - dipakai via Context.getString()) -->
+    <string name="title_device_locked">Perangkat Terkunci</string>
+    <string name="body_device_locked_message">Orang tua sedang mengaktifkan mode kunci. Buka TimeCraft untuk melihat tugas dan saldo hadiahmu.</string>
+    <string name="action_open_timecraft">Buka TimeCraft</string>
+    <string name="channel_device_control">Kontrol Perangkat</string>
+    <string name="notif_title_device_control_active">TimeCraft - Kontrol Perangkat aktif</string>
+    <string name="notif_text_monitoring_lock">Memantau status kunci dari orang tua.</string>
+
+    <!-- AppViewModel.kt (bukan Compose - dipakai via getApplication<Application>().getString()) -->
+    <string name="error_session_expired">Sesi berakhir, silakan masuk kembali.</string>
+    <string name="error_wrong_parent_password">Kata sandi orang tua salah.</string>
+    <string name="error_no_connection">Tidak dapat terhubung ke server. Periksa koneksi internet.</string>
+    <string name="info_child_added">Profil anak berhasil ditambahkan.</string>
+    <string name="info_child_deleted">Profil anak dihapus.</string>
+    <string name="info_pin_reset">PIN anak berhasil diatur ulang.</string>
+    <string name="info_task_created">Tugas berhasil dibuat.</string>
+    <string name="info_task_submitted">Tugas berhasil dikirim, menunggu persetujuan orang tua.</string>
+    <string name="info_task_approved">Tugas disetujui.</string>
+    <string name="info_task_rejected">Tugas ditolak.</string>
+    <string name="info_access_unlocked">Waktu akses dibuka selama %1$d menit.</string>
+    <string name="info_device_locked">Perangkat anak dikunci.</string>
+    <string name="info_device_unlocked">Kunci perangkat dibuka.</string>
+    <string name="error_generic">Terjadi kesalahan.</string>
 </resources>

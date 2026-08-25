@@ -18,6 +18,8 @@ import android.view.WindowManager
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
+import com.keluargakendali.R
+import com.keluargakendali.data.LocaleHelper
 import com.keluargakendali.data.PactioApi
 import com.keluargakendali.data.SecureTokenStore
 import kotlinx.coroutines.CoroutineScope
@@ -49,6 +51,14 @@ class DeviceLockService : Service() {
     // Looper), jadi panggilannya harus dilempar ke sini lewat mainHandler.post {}, bukan
     // dipanggil langsung dari coroutine background.
     private val mainHandler = Handler(Looper.getMainLooper())
+
+    // Sama alasannya dengan MainActivity.attachBaseContext - tanpa ini, teks di overlay/notifikasi
+    // service ini akan selalu ikut bahasa SISTEM HP, bukan bahasa yang dipilih pengguna di dalam
+    // aplikasi (SettingsStore), karena Service punya Resources sendiri yang terpisah dari Activity
+    // yang menyalakannya.
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(LocaleHelper.wrap(newBase))
+    }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -133,20 +143,20 @@ class DeviceLockService : Service() {
                 setPadding(64, 64, 64, 64)
 
                 addView(TextView(context).apply {
-                    text = "Perangkat Terkunci"
+                    text = getString(R.string.title_device_locked)
                     setTextColor(Color.WHITE)
                     textSize = 24f
                     gravity = Gravity.CENTER
                 })
                 addView(TextView(context).apply {
-                    text = "Orang tua sedang mengaktifkan mode kunci. Buka TimeCraft untuk melihat tugas dan saldo hadiahmu."
+                    text = getString(R.string.body_device_locked_message)
                     setTextColor(Color.WHITE)
                     textSize = 15f
                     gravity = Gravity.CENTER
                     setPadding(0, 32, 0, 32)
                 })
                 addView(Button(context).apply {
-                    text = "Buka TimeCraft"
+                    text = getString(R.string.action_open_timecraft)
                     setOnClickListener {
                         packageManager.getLaunchIntentForPackage(packageName)?.let {
                             it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -183,11 +193,11 @@ class DeviceLockService : Service() {
     }
 
     private fun buildNotification(): Notification {
-        val channel = NotificationChannel(CHANNEL_ID, "Kontrol Perangkat", NotificationManager.IMPORTANCE_LOW)
+        val channel = NotificationChannel(CHANNEL_ID, getString(R.string.channel_device_control), NotificationManager.IMPORTANCE_LOW)
         (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(channel)
         return Notification.Builder(this, CHANNEL_ID)
-            .setContentTitle("TimeCraft - Kontrol Perangkat aktif")
-            .setContentText("Memantau status kunci dari orang tua.")
+            .setContentTitle(getString(R.string.notif_title_device_control_active))
+            .setContentText(getString(R.string.notif_text_monitoring_lock))
             .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
             .setOngoing(true)
             .build()

@@ -3,6 +3,7 @@ package com.keluargakendali.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.keluargakendali.R
 import com.keluargakendali.data.ActivityLogEntryDto
 import com.keluargakendali.data.ApiException
 import com.keluargakendali.data.ChatMessageDto
@@ -56,6 +57,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _state = MutableStateFlow(UiState())
     val state: StateFlow<UiState> = _state.asStateFlow()
+
+    /**
+     * ViewModel bukan @Composable - stringResource() tidak berlaku di sini. getApplication()
+     * sudah otomatis mengembalikan Context dengan locale yang benar (lewat attachBaseContext di
+     * MainActivity yang membungkus Application context sebelum Activity dibuat).
+     */
+    private fun str(resId: Int): String = getApplication<Application>().getString(resId)
+    private fun str(resId: Int, vararg args: Any): String = getApplication<Application>().getString(resId, *args)
 
     init {
         restoreSession()
@@ -111,12 +120,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 // Sesi ANAK sendiri yang sudah tidak valid (bukan kata sandi orang tua salah -
                 // itu dibalas 403 oleh server, ditangkap di cabang ApiException di bawah).
                 tokenStore.clear()
-                _state.value = UiState(errorMessage = "Sesi berakhir, silakan masuk kembali.")
+                _state.value = UiState(errorMessage = str(R.string.error_session_expired))
             } catch (error: ApiException) {
-                onWrongPassword(error.message ?: "Kata sandi orang tua salah.")
+                onWrongPassword(error.message ?: str(R.string.error_wrong_parent_password))
                 _state.update { it.copy(loading = false) }
             } catch (error: Exception) {
-                onWrongPassword("Tidak dapat terhubung ke server. Periksa koneksi internet.")
+                onWrongPassword(str(R.string.error_no_connection))
                 _state.update { it.copy(loading = false) }
             }
         }
@@ -125,7 +134,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun addChild(name: String, pin: String) = requireToken { token ->
         PactioApi.addChild(token, name, pin)
         loadFamily(token)
-        _state.update { it.copy(infoMessage = "Profil anak berhasil ditambahkan.") }
+        _state.update { it.copy(infoMessage = str(R.string.info_child_added)) }
     }
 
     /** Dipanggil dari Pengaturan - tugas & foto bukti anak ini ikut terhapus di server. */
@@ -133,13 +142,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         PactioApi.deleteChild(token, childId)
         loadFamily(token)
         loadTasks(token)
-        _state.update { it.copy(infoMessage = "Profil anak dihapus.") }
+        _state.update { it.copy(infoMessage = str(R.string.info_child_deleted)) }
     }
 
     /** Dipanggil dari Pengaturan saat anak lupa PIN - lihat catatan di PactioApi.resetChildPin. */
     fun resetChildPin(childId: String, pin: String) = requireToken { token ->
         PactioApi.resetChildPin(token, childId, pin)
-        _state.update { it.copy(infoMessage = "PIN anak berhasil diatur ulang.") }
+        _state.update { it.copy(infoMessage = str(R.string.info_pin_reset)) }
         loadActivityLog()
     }
 
@@ -158,20 +167,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun createTask(childId: String, title: String, description: String, rewardMinutes: Int) = requireToken { token ->
         PactioApi.createTask(token, childId, title, description, rewardMinutes)
         loadTasks(token)
-        _state.update { it.copy(infoMessage = "Tugas berhasil dibuat.") }
+        _state.update { it.copy(infoMessage = str(R.string.info_task_created)) }
     }
 
     fun submitTask(taskId: String, evidence: String, evidenceFiles: List<String> = emptyList()) = requireToken { token ->
         PactioApi.submitTask(token, taskId, evidence, evidenceFiles)
         loadTasks(token)
         loadBalanceIfChild(token)
-        _state.update { it.copy(infoMessage = "Tugas berhasil dikirim, menunggu persetujuan orang tua.") }
+        _state.update { it.copy(infoMessage = str(R.string.info_task_submitted)) }
     }
 
     fun decideTask(taskId: String, approved: Boolean, note: String) = requireToken { token ->
         PactioApi.decideTask(token, taskId, approved, note)
         loadTasks(token)
-        _state.update { it.copy(infoMessage = if (approved) "Tugas disetujui." else "Tugas ditolak.") }
+        _state.update { it.copy(infoMessage = str(if (approved) R.string.info_task_approved else R.string.info_task_rejected)) }
     }
 
     /**
@@ -189,7 +198,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 balanceMinutes = balance.minutes,
                 approvedTaskCount = balance.approvedTaskCount,
                 unlockUntil = balance.unlockUntil,
-                infoMessage = "Waktu akses dibuka selama $minutes menit."
+                infoMessage = str(R.string.info_access_unlocked, minutes)
             )
         }
     }
@@ -197,7 +206,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun setChildLock(childId: String, enabled: Boolean) = requireToken { token ->
         PactioApi.setChildLock(token, childId, enabled)
         loadFamily(token)
-        _state.update { it.copy(infoMessage = if (enabled) "Perangkat anak dikunci." else "Kunci perangkat dibuka.") }
+        _state.update { it.copy(infoMessage = str(if (enabled) R.string.info_device_locked else R.string.info_device_unlocked)) }
     }
 
     /**
@@ -307,12 +316,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             } catch (error: ApiException.Unauthorized) {
                 // Token ditolak backend (kedaluwarsa/tidak valid) -> paksa kembali ke layar login.
                 tokenStore.clear()
-                _state.value = UiState(errorMessage = "Sesi berakhir, silakan masuk kembali.")
+                _state.value = UiState(errorMessage = str(R.string.error_session_expired))
                 return@launch
             } catch (error: ApiException) {
-                _state.update { it.copy(errorMessage = error.message ?: "Terjadi kesalahan.") }
+                _state.update { it.copy(errorMessage = error.message ?: str(R.string.error_generic)) }
             } catch (error: Exception) {
-                _state.update { it.copy(errorMessage = "Tidak dapat terhubung ke server. Periksa koneksi internet.") }
+                _state.update { it.copy(errorMessage = str(R.string.error_no_connection)) }
             }
             _state.update { it.copy(loading = false) }
         }

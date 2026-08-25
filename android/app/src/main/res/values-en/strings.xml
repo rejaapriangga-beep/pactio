@@ -209,4 +209,28 @@
     <string name="cd_chat_photo">Chat photo</string>
     <string name="label_photo_unavailable">Photo unavailable</string>
     <string name="cd_chat_photo_preview">Chat photo preview</string>
+
+    <!-- DeviceLockService.kt (not Compose - used via Context.getString()) -->
+    <string name="title_device_locked">Device Locked</string>
+    <string name="body_device_locked_message">A parent has enabled lock mode. Open TimeCraft to see your tasks and reward balance.</string>
+    <string name="action_open_timecraft">Open TimeCraft</string>
+    <string name="channel_device_control">Device Control</string>
+    <string name="notif_title_device_control_active">TimeCraft - Device Control active</string>
+    <string name="notif_text_monitoring_lock">Monitoring lock status from a parent.</string>
+
+    <!-- AppViewModel.kt (not Compose - used via getApplication<Application>().getString()) -->
+    <string name="error_session_expired">Session expired, please sign in again.</string>
+    <string name="error_wrong_parent_password">Wrong parent password.</string>
+    <string name="error_no_connection">Can\'t reach the server. Check your internet connection.</string>
+    <string name="info_child_added">Child profile added successfully.</string>
+    <string name="info_child_deleted">Child profile deleted.</string>
+    <string name="info_pin_reset">Child\'s PIN reset successfully.</string>
+    <string name="info_task_created">Task created successfully.</string>
+    <string name="info_task_submitted">Task submitted, awaiting parent approval.</string>
+    <string name="info_task_approved">Task approved.</string>
+    <string name="info_task_rejected">Task rejected.</string>
+    <string name="info_access_unlocked">Access unlocked for %1$d minutes.</string>
+    <string name="info_device_locked">Child\'s device locked.</string>
+    <string name="info_device_unlocked">Device lock removed.</string>
+    <string name="error_generic">Something went wrong.</string>
 </resources>
