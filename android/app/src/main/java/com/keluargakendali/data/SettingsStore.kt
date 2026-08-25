@@ -13,8 +13,13 @@ object SettingsStore {
     private const val KEY_LANGUAGE = "language" // "id" atau "en"
     private const val KEY_DARK_MODE = "dark_mode"
 
+    // TIDAK pakai context.applicationContext di sini dengan sengaja - fungsi ini dipanggil dari
+    // Application.attachBaseContext() (lewat LocaleHelper), dan pada tahap SEDINI itu
+    // applicationContext BELUM tersedia (masih null) di banyak versi Android, bikin
+    // NullPointerException saat aplikasi baru dibuka. context itu sendiri (Application/Activity/
+    // Service apa pun yang memanggil) sudah valid dipakai langsung untuk getSharedPreferences.
     private fun prefs(context: Context): SharedPreferences =
-        context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     /** Default "id" - aplikasi ini dibuat untuk keluarga Indonesia, Inggris opsional. */
     fun getLanguage(context: Context): String = prefs(context).getString(KEY_LANGUAGE, "id") ?: "id"
