@@ -27,8 +27,10 @@ android {
         // (com.keluargakendali, tetap dipakai sebagai nama package Kotlin/R class - AGP modern
         // memisahkan keduanya, jadi ini TIDAK mengharuskan rename package di semua berkas .kt).
         // Ini keputusan permanen - applicationId tidak bisa diubah lagi setelah upload pertama
-        // ke Play Console.
-        applicationId = "com.timecraft"
+        // ke Play Console. "com.timecraft" ternyata sudah dipakai developer lain di Play Store
+        // (nama package unik secara global) - diganti ke kebalikan domain yang BENAR-BENAR
+        // dimiliki pengguna (timecraft.my.id), supaya hampir pasti tidak bentrok lagi.
+        applicationId = "id.my.timecraft"
         minSdk = 26
         targetSdk = 36
         versionCode = 1
