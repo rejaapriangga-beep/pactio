@@ -198,4 +198,21 @@
     <string name="action_send">Kirim</string>
     <string name="cd_remove_attachment">Hapus lampiran</string>
     <string name="label_photo_camera">Foto</string>
+
+    <!-- ChatScreen.kt -->
+    <string name="error_send_photo_failed">Gagal mengirim foto.</string>
+    <string name="error_read_photo_failed">Gagal membaca foto yang dipilih.</string>
+    <string name="error_react_failed">Gagal memberi reaksi.</string>
+    <string name="error_send_message_failed">Gagal mengirim pesan.</string>
+    <string name="empty_no_chat_messages">Belum ada percakapan. Kirim pesan pertama!</string>
+    <string name="label_replying_to">Membalas %1$s: %2$s</string>
+    <string name="cd_cancel_reply">Batal balas</string>
+    <string name="cd_send_photo_camera">Kirim foto dari kamera</string>
+    <string name="cd_send_photo_gallery">Kirim foto dari galeri</string>
+    <string name="placeholder_write_message">Tulis pesan…</string>
+    <string name="action_reply_short">↩ Balas</string>
+    <string name="action_react_short">🙂 Reaksi</string>
+    <string name="cd_chat_photo">Foto chat</string>
+    <string name="label_photo_unavailable">Foto tidak tersedia</string>
+    <string name="cd_chat_photo_preview">Pratinjau foto chat</string>
 </resources>

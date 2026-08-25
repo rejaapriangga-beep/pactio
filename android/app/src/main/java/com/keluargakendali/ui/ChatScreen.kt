@@ -56,9 +56,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.keluargakendali.R
 import com.keluargakendali.data.CHAT_REACTION_EMOJI
 import com.keluargakendali.data.ChatMessageDto
 import com.keluargakendali.data.ChatPhotoCache
@@ -105,6 +107,14 @@ fun ChatScreen(state: UiState, childId: String, onRefreshUnread: () -> Unit) {
     var reactionPickerMessageId by remember(childId) { mutableStateOf<String?>(null) }
     val listState = rememberLazyListState()
 
+    // Disiapkan di sini (konteks composable) untuk dipakai di dalam sendPhoto (suspend fun biasa,
+    // bukan @Composable) dan callback ActivityResultLauncher/coroutine di bawah - stringResource()
+    // tidak valid dipanggil langsung dari situ.
+    val errorSendPhotoFailed = stringResource(R.string.error_send_photo_failed)
+    val errorReadPhotoFailed = stringResource(R.string.error_read_photo_failed)
+    val errorReactFailed = stringResource(R.string.error_react_failed)
+    val errorSendMessageFailed = stringResource(R.string.error_send_message_failed)
+
     suspend fun sendPhoto(bitmap: Bitmap) {
         sending = true
         val output = ByteArrayOutputStream()
@@ -118,7 +128,7 @@ fun ChatScreen(state: UiState, childId: String, onRefreshUnread: () -> Unit) {
                 sendError = null
                 replyTarget = null
             }
-            .onFailure { sendError = "Gagal mengirim foto." }
+            .onFailure { sendError = errorSendPhotoFailed }
         sending = false
     }
 
@@ -134,7 +144,7 @@ fun ChatScreen(state: UiState, childId: String, onRefreshUnread: () -> Unit) {
             scope.launch {
                 val bytes = runCatching { context.contentResolver.openInputStream(uri)?.use { it.readBytes() } }.getOrNull()
                 val bitmap = bytes?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
-                if (bitmap == null) sendError = "Gagal membaca foto yang dipilih." else sendPhoto(bitmap)
+                if (bitmap == null) sendError = errorReadPhotoFailed else sendPhoto(bitmap)
             }
         }
     }
@@ -168,7 +178,7 @@ fun ChatScreen(state: UiState, childId: String, onRefreshUnread: () -> Unit) {
         if (messages.isEmpty()) {
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Text(
-                    "Belum ada percakapan. Kirim pesan pertama!",
+                    stringResource(R.string.empty_no_chat_messages),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodySmall
                 )
@@ -190,7 +200,7 @@ fun ChatScreen(state: UiState, childId: String, onRefreshUnread: () -> Unit) {
                         isMine = message.senderId == myId,
                         senderName = senderLabelFor(message, state),
                         replyToLabel = quotedMessage?.let { senderLabelFor(it, state) },
-                        replyToPreview = quotedMessage?.let { if (it.type == "photo") "📷 Foto" else (it.text ?: "") },
+                        replyToPreview = quotedMessage?.let { if (it.type == "photo") stringResource(R.string.label_photo_preview) else (it.text ?: "") },
                         myUserId = myId,
                         reactionPickerOpen = reactionPickerMessageId == message.id,
                         context = context,
@@ -205,7 +215,7 @@ fun ChatScreen(state: UiState, childId: String, onRefreshUnread: () -> Unit) {
                             scope.launch {
                                 runCatching { PactioApi.reactToChatMessage(token, childId, message.id, emoji) }
                                     .onSuccess { updated -> messages = messages.map { if (it.id == updated.id) updated else it } }
-                                    .onFailure { sendError = "Gagal memberi reaksi." }
+                                    .onFailure { sendError = errorReactFailed }
                             }
                         }
                     )
@@ -233,15 +243,15 @@ fun ChatScreen(state: UiState, childId: String, onRefreshUnread: () -> Unit) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                val preview = if (target.type == "photo") "📷 Foto" else (target.text ?: "")
+                val preview = if (target.type == "photo") stringResource(R.string.label_photo_preview) else (target.text ?: "")
                 Text(
-                    "Membalas ${senderLabelFor(target, state)}: $preview",
+                    stringResource(R.string.label_replying_to, senderLabelFor(target, state), preview),
                     style = MaterialTheme.typography.bodySmall,
                     maxLines = 1,
                     modifier = Modifier.weight(1f)
                 )
                 IconButton(onClick = { replyTarget = null }, modifier = Modifier.size(28.dp)) {
-                    Icon(Icons.Default.Close, contentDescription = "Batal balas")
+                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.cd_cancel_reply))
                 }
             }
         }
@@ -254,7 +264,7 @@ fun ChatScreen(state: UiState, childId: String, onRefreshUnread: () -> Unit) {
                 },
                 enabled = !sending
             ) {
-                Icon(Icons.Default.PhotoCamera, contentDescription = "Kirim foto dari kamera")
+                Icon(Icons.Default.PhotoCamera, contentDescription = stringResource(R.string.cd_send_photo_camera))
             }
             IconButton(
                 onClick = {
@@ -263,12 +273,12 @@ fun ChatScreen(state: UiState, childId: String, onRefreshUnread: () -> Unit) {
                 },
                 enabled = !sending
             ) {
-                Icon(Icons.Default.PhotoLibrary, contentDescription = "Kirim foto dari galeri")
+                Icon(Icons.Default.PhotoLibrary, contentDescription = stringResource(R.string.cd_send_photo_gallery))
             }
             OutlinedTextField(
                 value = input,
                 onValueChange = { input = it },
-                placeholder = { Text("Tulis pesan...") },
+                placeholder = { Text(stringResource(R.string.placeholder_write_message)) },
                 singleLine = true,
                 modifier = Modifier.weight(1f)
             )
@@ -283,13 +293,13 @@ fun ChatScreen(state: UiState, childId: String, onRefreshUnread: () -> Unit) {
                     scope.launch {
                         runCatching { PactioApi.sendChatText(token, childId, text, replyToId) }
                             .onSuccess { sent -> messages = messages + sent; sendError = null; replyTarget = null }
-                            .onFailure { sendError = "Gagal mengirim pesan." }
+                            .onFailure { sendError = errorSendMessageFailed }
                         sending = false
                     }
                 },
                 enabled = !sending && input.isNotBlank()
             ) {
-                Icon(Icons.Default.Send, contentDescription = "Kirim")
+                Icon(Icons.Default.Send, contentDescription = stringResource(R.string.action_send))
             }
         }
     }
@@ -300,10 +310,11 @@ fun ChatScreen(state: UiState, childId: String, onRefreshUnread: () -> Unit) {
  * replyTarget di atas), atau "Orang Tua"/nama anak untuk pesan orang lain (dipakai sebagai label
  * di atas bubble non-mine, penting di thread grup yang bisa lebih dari 2 peserta).
  */
-private fun senderLabelFor(message: ChatMessageDto, state: UiState): String {
-    if (message.senderId == state.currentUser?.id) return "Kamu"
-    if (message.senderRole == "parent") return "Orang Tua"
-    return state.children.find { it.id == message.senderId }?.name ?: "Anak"
+@Composable
+private fun senderLabelFor(message: ChatMessageDto, state: UiState): String = when {
+    message.senderId == state.currentUser?.id -> stringResource(R.string.label_you)
+    message.senderRole == "parent" -> stringResource(R.string.label_parent_role)
+    else -> state.children.find { it.id == message.senderId }?.name ?: stringResource(R.string.label_child_singular)
 }
 
 @Composable
@@ -389,10 +400,10 @@ private fun ChatBubble(
 
             Row(Modifier.padding(top = 2.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 TextButton(onClick = onReplyRequested, contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)) {
-                    Text("↩ Balas", style = MaterialTheme.typography.labelSmall, color = onBubbleColor.copy(alpha = 0.85f))
+                    Text(stringResource(R.string.action_reply_short), style = MaterialTheme.typography.labelSmall, color = onBubbleColor.copy(alpha = 0.85f))
                 }
                 TextButton(onClick = onToggleReactionPicker, contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)) {
-                    Text("🙂 Reaksi", style = MaterialTheme.typography.labelSmall, color = onBubbleColor.copy(alpha = 0.85f))
+                    Text(stringResource(R.string.action_react_short), style = MaterialTheme.typography.labelSmall, color = onBubbleColor.copy(alpha = 0.85f))
                 }
             }
 
@@ -463,13 +474,13 @@ private fun ChatPhotoContent(context: Context, token: String, childId: String, m
         when {
             current != null -> Image(
                 bitmap = current.asImageBitmap(),
-                contentDescription = "Foto chat",
+                contentDescription = stringResource(R.string.cd_chat_photo),
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
             )
             failed -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(Icons.Default.BrokenImage, contentDescription = null)
-                Text("Foto tidak tersedia", style = MaterialTheme.typography.labelSmall)
+                Text(stringResource(R.string.label_photo_unavailable), style = MaterialTheme.typography.labelSmall)
             }
             else -> CircularProgressIndicator(modifier = Modifier.size(24.dp))
         }
@@ -487,12 +498,12 @@ private fun ChatImagePreviewDialog(bitmap: Bitmap, onDismiss: () -> Unit) {
         text = {
             Image(
                 bitmap = bitmap.asImageBitmap(),
-                contentDescription = "Pratinjau foto chat",
+                contentDescription = stringResource(R.string.cd_chat_photo_preview),
                 contentScale = ContentScale.Fit,
                 modifier = Modifier.fillMaxWidth()
             )
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Tutup") } }
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_close)) } }
     )
 }
 

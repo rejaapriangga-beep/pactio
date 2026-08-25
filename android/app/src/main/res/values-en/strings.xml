@@ -192,4 +192,21 @@
     <string name="action_send">Send</string>
     <string name="cd_remove_attachment">Remove attachment</string>
     <string name="label_photo_camera">Photo</string>
+
+    <!-- ChatScreen.kt -->
+    <string name="error_send_photo_failed">Failed to send photo.</string>
+    <string name="error_read_photo_failed">Failed to read the selected photo.</string>
+    <string name="error_react_failed">Failed to add reaction.</string>
+    <string name="error_send_message_failed">Failed to send message.</string>
+    <string name="empty_no_chat_messages">No messages yet. Send the first one!</string>
+    <string name="label_replying_to">Replying to %1$s: %2$s</string>
+    <string name="cd_cancel_reply">Cancel reply</string>
+    <string name="cd_send_photo_camera">Send photo from camera</string>
+    <string name="cd_send_photo_gallery">Send photo from gallery</string>
+    <string name="placeholder_write_message">Write a message…</string>
+    <string name="action_reply_short">↩ Reply</string>
+    <string name="action_react_short">🙂 React</string>
+    <string name="cd_chat_photo">Chat photo</string>
+    <string name="label_photo_unavailable">Photo unavailable</string>
+    <string name="cd_chat_photo_preview">Chat photo preview</string>
 </resources>
