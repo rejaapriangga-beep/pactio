@@ -11,6 +11,13 @@ android {
     // fitur yang dipakai project ini.
     compileSdk = 36
 
+    // Nama file APK/AAB hasil build - default AGP pakai nama modul ("app"), jadi tanpa ini
+    // hasilnya selalu app-debug.apk/app-release.aab. Diganti supaya nama filenya sendiri
+    // juga "TimeCraft", bukan cuma android:label di dalam aplikasi.
+    base {
+        archivesName = "TimeCraft"
+    }
+
     buildFeatures {
         compose = true
     }

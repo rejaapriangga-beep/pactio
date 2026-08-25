@@ -42,8 +42,8 @@ jobs:
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: pactio-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: timecraft-debug-apk
+          path: android/app/build/outputs/apk/debug/TimeCraft-debug.apk
           if-no-files-found: error
           retention-days: 30
 
@@ -97,6 +97,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: timecraft-release-aab
-          path: android/app/build/outputs/bundle/release/app-release.aab
+          path: android/app/build/outputs/bundle/release/TimeCraft-release.aab
           if-no-files-found: error
           retention-days: 90
