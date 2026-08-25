@@ -33,7 +33,10 @@ android {
         applicationId = "id.my.timecraft"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
+        // Naik dari 1 - Play Console menolak versionCode yang sudah pernah dipakai di TRACK
+        // MANAPUN (Internal testing sudah pakai 1), setiap upload AAB baru ke track apa pun
+        // wajib versionCode yang belum pernah dipakai sebelumnya.
+        versionCode = 2
         versionName = "0.1.0"
     }
 
