@@ -44,10 +44,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import com.keluargakendali.R
 import com.keluargakendali.data.statusLabel
 
 /** Chip status tugas — berwarna per status (hijau/emas/merah/netral), sesuai mockup. */
@@ -103,7 +105,7 @@ fun PasswordField(value: String, onValueChange: (String) -> Unit, label: String,
         IconButton(onClick = { visible = !visible }) {
             Icon(
                 if (visible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                contentDescription = if (visible) "Sembunyikan" else "Tampilkan"
+                contentDescription = if (visible) stringResource(R.string.cd_hide_password) else stringResource(R.string.cd_show_password)
             )
         }
     }
@@ -210,7 +212,7 @@ fun ErrorBanner(message: String, onDismiss: () -> Unit) {
         Column(Modifier.fillMaxWidth().padding(12.dp)) {
             Text(message, color = MaterialTheme.colorScheme.onErrorContainer)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                TextButton(onClick = onDismiss) { Text("Tutup") }
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_close)) }
             }
         }
     }

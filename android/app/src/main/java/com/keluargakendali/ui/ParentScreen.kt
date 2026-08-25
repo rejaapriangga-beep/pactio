@@ -80,12 +80,14 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
+import com.keluargakendali.R
 import com.keluargakendali.data.ActivityLogEntryDto
 import com.keluargakendali.data.ChatMessageDto
 import com.keluargakendali.data.EVIDENCE_MIME_EXT
@@ -121,11 +123,11 @@ fun ParentScreen(
     // Pengaturan sengaja TIDAK ikut sebagai tab - dipindah jadi ikon gerigi di TopAppBar
     // (lihat MainActivity), tepat di sebelah kiri "Keluar", supaya 5 tab ini muat satu baris.
     val tabs = listOf(
-        TabItem("Dashboard", Icons.Default.Dashboard),
-        TabItem("Tugas", Icons.Default.Checklist),
-        TabItem("Approval", Icons.Default.FactCheck, badgeCount = approvalCount),
-        TabItem("Chat", Icons.Default.Chat, badgeCount = state.chatUnreadTotal),
-        TabItem("Kunci", Icons.Default.Lock)
+        TabItem(stringResource(R.string.tab_dashboard), Icons.Default.Dashboard),
+        TabItem(stringResource(R.string.tab_tasks), Icons.Default.Checklist),
+        TabItem(stringResource(R.string.tab_approval), Icons.Default.FactCheck, badgeCount = approvalCount),
+        TabItem(stringResource(R.string.tab_chat), Icons.Default.Chat, badgeCount = state.chatUnreadTotal),
+        TabItem(stringResource(R.string.tab_lock), Icons.Default.Lock)
     )
 
     Column(Modifier.fillMaxSize()) {
@@ -208,20 +210,20 @@ fun ParentSettingsDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Pengaturan") },
+        title = { Text(stringResource(R.string.app_settings)) },
         text = {
             // Dialog ini sudah cukup panjang (profil anak + log aktivitas) - digulir supaya
             // tetap muat di layar kecil, konsisten dengan pola LazyColumn di layar lain.
             Column(Modifier.verticalScroll(rememberScrollState())) {
-                Text("Profil Anak", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.heading_child_profiles), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                 Text(
-                    "PIN anak disimpan terenkripsi dan tidak bisa ditampilkan ulang. Kalau anak lupa PIN, gunakan Reset PIN.",
+                    stringResource(R.string.desc_child_pin_encrypted),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 if (children.isEmpty()) {
                     Text(
-                        "Belum ada profil anak.",
+                        stringResource(R.string.empty_no_children),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -234,16 +236,16 @@ fun ParentSettingsDialog(
                         ) {
                             Text(child.name, modifier = Modifier.weight(1f))
                             IconButton(onClick = { childPendingResetPin = child }) {
-                                Icon(Icons.Default.Key, contentDescription = "Reset PIN ${child.name}")
+                                Icon(Icons.Default.Key, contentDescription = stringResource(R.string.cd_reset_pin_for, child.name))
                             }
                             IconButton(onClick = { childPendingDelete = child }) {
-                                Icon(Icons.Default.Delete, contentDescription = "Hapus ${child.name}", tint = MaterialTheme.colorScheme.error)
+                                Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.cd_delete_for, child.name), tint = MaterialTheme.colorScheme.error)
                             }
                         }
                     }
                 }
                 Text(
-                    "Tambah profil anak baru sekarang ada di tab Kunci Perangkat.",
+                    stringResource(R.string.hint_add_child_moved),
                     style = MaterialTheme.typography.bodySmall,
                     fontStyle = FontStyle.Italic,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -257,10 +259,10 @@ fun ParentSettingsDialog(
                 Spacer(Modifier.height(20.dp))
                 HorizontalDivider()
                 Spacer(Modifier.height(12.dp))
-                Text("Log Aktivitas", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.heading_activity_log), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                 if (activityLog.isEmpty()) {
                     Text(
-                        "Belum ada aktivitas tercatat.",
+                        stringResource(R.string.empty_no_activity),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -269,7 +271,7 @@ fun ParentSettingsDialog(
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Tutup") } }
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_close)) } }
     )
 
     val resetPinTarget = childPendingResetPin
@@ -286,21 +288,18 @@ fun ParentSettingsDialog(
     if (deleteTarget != null) {
         AlertDialog(
             onDismissRequest = { childPendingDelete = null },
-            title = { Text("Hapus profil ${deleteTarget.name}?") },
+            title = { Text(stringResource(R.string.title_delete_child_confirm, deleteTarget.name)) },
             text = {
-                Text(
-                    "Semua tugas, riwayat chat, dan foto bukti miliknya akan ikut terhapus, dan " +
-                        "perangkat anak ini akan otomatis keluar. Tindakan ini tidak bisa dibatalkan."
-                )
+                Text(stringResource(R.string.body_delete_child_confirm))
             },
             confirmButton = {
                 Button(
                     onClick = { onDeleteChild(deleteTarget.id); childPendingDelete = null },
                     enabled = !loading,
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) { Text("Hapus") }
+                ) { Text(stringResource(R.string.action_delete)) }
             },
-            dismissButton = { TextButton(onClick = { childPendingDelete = null }) { Text("Batal") } }
+            dismissButton = { TextButton(onClick = { childPendingDelete = null }) { Text(stringResource(R.string.action_cancel)) } }
         )
     }
 }
@@ -319,15 +318,15 @@ fun ParentSettingsDialog(
 private fun BackupSection(token: String, familyName: String?) {
     BackupFlow(token = token, familyName = familyName) { onClick, loading ->
         Column {
-            Text("Cadangan Data", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.heading_backup_data), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
             Text(
-                "Unduh salinan data keluarga (profil anak, tugas, riwayat chat) sebagai berkas terenkripsi ke penyimpanan HP kamu. Kata sandinya kamu tentukan sendiri - server TIDAK menyimpannya.",
+                stringResource(R.string.desc_backup),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(Modifier.height(8.dp))
             OutlinedButton(onClick = onClick, modifier = Modifier.fillMaxWidth(), enabled = !loading) {
-                Text("Unduh Backup Terenkripsi")
+                Text(stringResource(R.string.action_download_backup_encrypted))
             }
         }
     }
@@ -338,7 +337,7 @@ private fun BackupSection(token: String, familyName: String?) {
 fun BackupIconButton(token: String, familyName: String?) {
     BackupFlow(token = token, familyName = familyName) { onClick, loading ->
         IconButton(onClick = onClick, enabled = !loading) {
-            Icon(Icons.Default.CloudDownload, contentDescription = "Unduh Backup Terenkripsi")
+            Icon(Icons.Default.CloudDownload, contentDescription = stringResource(R.string.action_download_backup_encrypted))
         }
     }
 }
@@ -352,13 +351,20 @@ private fun BackupFlow(token: String, familyName: String?, trigger: @Composable 
     var backupError by remember { mutableStateOf<String?>(null) }
     var pendingBackupBytes by remember { mutableStateOf<ByteArray?>(null) }
 
+    // Disiapkan di sini (konteks composable), BUKAN langsung di dalam lambda callback di bawah -
+    // stringResource() cuma boleh dipanggil langsung dari fungsi @Composable, sedangkan callback
+    // ActivityResultLauncher/coroutine bukan konteks composable.
+    val backupSavedMessage = stringResource(R.string.toast_backup_saved)
+    val backupSaveFailedMessage = stringResource(R.string.toast_backup_save_failed)
+    val backupCreateFailedMessage = stringResource(R.string.error_backup_create_failed)
+
     val createDocumentLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         val bytes = pendingBackupBytes
         pendingBackupBytes = null
         if (uri != null && bytes != null) {
             runCatching { context.contentResolver.openOutputStream(uri)?.use { it.write(bytes) } }
-                .onSuccess { Toast.makeText(context, "Backup terenkripsi berhasil disimpan. Simpan kata sandinya baik-baik - server TIDAK menyimpannya.", Toast.LENGTH_LONG).show() }
-                .onFailure { Toast.makeText(context, "Gagal menyimpan berkas backup.", Toast.LENGTH_SHORT).show() }
+                .onSuccess { Toast.makeText(context, backupSavedMessage, Toast.LENGTH_LONG).show() }
+                .onFailure { Toast.makeText(context, backupSaveFailedMessage, Toast.LENGTH_SHORT).show() }
         }
     }
 
@@ -392,7 +398,7 @@ private fun BackupFlow(token: String, familyName: String?, trigger: @Composable 
                             pendingBackupBytes = json.toString(2).toByteArray(Charsets.UTF_8)
                             showPasswordDialog = false
                         }
-                        .onFailure { backupError = it.message ?: "Gagal membuat backup." }
+                        .onFailure { backupError = it.message ?: backupCreateFailedMessage }
                     backupLoading = false
                 }
             }
@@ -408,17 +414,17 @@ private fun BackupPasswordDialog(loading: Boolean, error: String?, onDismiss: ()
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Unduh Backup Terenkripsi") },
+        title = { Text(stringResource(R.string.action_download_backup_encrypted)) },
         text = {
             Column {
                 Text(
-                    "Buat kata sandi backup (minimal 8 karakter). Kata sandi ini HARUS kamu ingat sendiri - dipakai lagi nanti untuk membuka berkas ini, server tidak menyimpannya sama sekali.",
+                    stringResource(R.string.desc_backup_password),
                     style = MaterialTheme.typography.bodySmall
                 )
                 Spacer(Modifier.height(8.dp))
-                PasswordField(password, { password = it }, "Kata sandi backup", KeyboardType.Password)
-                PasswordField(confirm, { confirm = it }, "Ulangi kata sandi", KeyboardType.Password)
-                if (mismatch) Text("Kata sandi tidak sama.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                PasswordField(password, { password = it }, stringResource(R.string.label_backup_password), KeyboardType.Password)
+                PasswordField(confirm, { confirm = it }, stringResource(R.string.label_repeat_password), KeyboardType.Password)
+                if (mismatch) Text(stringResource(R.string.error_password_mismatch), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
             }
         },
@@ -426,9 +432,9 @@ private fun BackupPasswordDialog(loading: Boolean, error: String?, onDismiss: ()
             Button(
                 onClick = { onSubmit(password) },
                 enabled = !loading && password.length >= 8 && password == confirm
-            ) { Text("Unduh Backup") }
+            ) { Text(stringResource(R.string.action_download_backup_short)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Batal") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
     )
 }
 
@@ -438,34 +444,39 @@ private fun ResetPinDialog(childName: String, loading: Boolean, onDismiss: () ->
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Reset PIN $childName") },
+        title = { Text(stringResource(R.string.cd_reset_pin_for, childName)) },
         text = {
             Column {
                 Text(
-                    "PIN lama langsung tidak berlaku begitu PIN baru disimpan. Beri tahu PIN baru ini ke $childName secara langsung.",
+                    stringResource(R.string.body_reset_pin, childName),
                     style = MaterialTheme.typography.bodySmall
                 )
                 Spacer(Modifier.height(8.dp))
-                PasswordField(pin, { pin = it.filter { c -> c.isDigit() }.take(8) }, "PIN baru (4-8 digit)", KeyboardType.NumberPassword)
+                PasswordField(pin, { pin = it.filter { c -> c.isDigit() }.take(8) }, stringResource(R.string.label_new_pin), KeyboardType.NumberPassword)
             }
         },
         confirmButton = {
-            Button(onClick = { onSubmit(pin) }, enabled = !loading && pin.length in 4..8) { Text("Simpan PIN Baru") }
+            Button(onClick = { onSubmit(pin) }, enabled = !loading && pin.length in 4..8) { Text(stringResource(R.string.action_save_new_pin)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Batal") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
     )
 }
 
 /** Satu baris Log Aktivitas - lihat activityActionLabel di Models.kt untuk pemetaan kode -> teks. */
 @Composable
 private fun ActivityLogRow(entry: ActivityLogEntryDto) {
+    // actionText & roleLabel dihitung DI LUAR buildString - keduanya lewat stringResource(),
+    // yang hanya boleh dipanggil dari konteks @Composable langsung, bukan dari dalam lambda
+    // builder biasa seperti buildString { ... }.
+    val roleLabel = if (entry.actorRole == "parent") stringResource(R.string.role_parent_suffix) else stringResource(R.string.role_child_suffix)
+    val actionText = activityActionLabel(entry.action)
     Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(
                 buildString {
                     append(entry.actorName)
-                    append(if (entry.actorRole == "parent") " (Orang Tua) " else " (Anak) ")
-                    append(activityActionLabel(entry.action))
+                    append(roleLabel)
+                    append(actionText)
                 },
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.weight(1f)
@@ -513,7 +524,7 @@ private fun ParentDashboardTab(
                 shape = RoundedCornerShape(22.dp)
             ) {
                 Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(state.family?.name ?: "Keluarga", fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.titleMedium)
+                    Text(state.family?.name ?: stringResource(R.string.label_family_fallback), fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.titleMedium)
                     if (state.family?.code != null) {
                         Text(
                             state.family.code,
@@ -527,7 +538,7 @@ private fun ParentDashboardTab(
                     }
                     if (state.children.isEmpty()) {
                         Text(
-                            "Belum ada profil anak. Tambah lewat ikon gerigi Pengaturan di kanan atas.",
+                            stringResource(R.string.hint_no_children_add),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -537,24 +548,24 @@ private fun ParentDashboardTab(
 
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 DashboardStatCard(
-                    modifier = Modifier.weight(1f), label = "Menunggu Approval", value = approvalCount.toString(),
+                    modifier = Modifier.weight(1f), label = stringResource(R.string.stat_pending_approval), value = approvalCount.toString(),
                     icon = Icons.Default.FactCheck, accentColor = MaterialTheme.colorScheme.secondary,
                     onClick = { cardModal = "approval" }
                 )
                 DashboardStatCard(
-                    modifier = Modifier.weight(1f), label = "Anak", value = state.children.size.toString(),
+                    modifier = Modifier.weight(1f), label = stringResource(R.string.stat_children), value = state.children.size.toString(),
                     icon = Icons.Default.Group, accentColor = MaterialTheme.colorScheme.primary,
                     onClick = { cardModal = "children" }
                 )
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 DashboardStatCard(
-                    modifier = Modifier.weight(1f), label = "Terkunci", value = state.children.count { it.lockModeEnabled }.toString(),
+                    modifier = Modifier.weight(1f), label = stringResource(R.string.stat_locked), value = state.children.count { it.lockModeEnabled }.toString(),
                     icon = Icons.Default.Lock, accentColor = MaterialTheme.colorScheme.error,
                     onClick = { cardModal = "locked" }
                 )
                 DashboardStatCard(
-                    modifier = Modifier.weight(1f), label = "Total Tugas", value = state.tasks.size.toString(),
+                    modifier = Modifier.weight(1f), label = stringResource(R.string.stat_total_tasks), value = state.tasks.size.toString(),
                     icon = Icons.Default.Checklist, accentColor = MaterialTheme.colorScheme.tertiary,
                     onClick = { cardModal = "tasks" }
                 )
@@ -573,7 +584,7 @@ private fun ParentDashboardTab(
                 onClick = onCreateTask,
                 modifier = Modifier.align(Alignment.BottomEnd).padding(20.dp)
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Buat Tugas")
+                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.action_create_task))
             }
         }
     }
@@ -609,11 +620,11 @@ private fun DashboardApprovalDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Menunggu Approval") },
+        title = { Text(stringResource(R.string.stat_pending_approval)) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (tasks.isEmpty()) {
-                    Text("Tidak ada tugas yang menunggu approval.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.empty_no_pending_approval), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
                     tasks.forEach { task ->
                         WaitingTaskCard(task = task, childName = children.find { it.id == task.childId }?.name, token = token, loading = loading, onDecide = onDecide)
@@ -621,7 +632,7 @@ private fun DashboardApprovalDialog(
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Tutup") } }
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_close)) } }
     )
 }
 
@@ -629,11 +640,11 @@ private fun DashboardApprovalDialog(
 private fun DashboardChildrenDialog(children: List<UserDto>, tasks: List<TaskDto>, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Anak") },
+        title = { Text(stringResource(R.string.stat_children)) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 if (children.isEmpty()) {
-                    Text("Belum ada profil anak.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.empty_no_children), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
                     children.forEach { child ->
                         val incomplete = tasks.count { it.childId == child.id && it.status != "approved" }
@@ -646,14 +657,14 @@ private fun DashboardChildrenDialog(children: List<UserDto>, tasks: List<TaskDto
                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 if (child.lockModeEnabled) {
                                     Text(
-                                        "Terkunci",
+                                        stringResource(R.string.stat_locked),
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onErrorContainer,
                                         modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(MaterialTheme.colorScheme.errorContainer).padding(horizontal = 8.dp, vertical = 2.dp)
                                     )
                                 }
                                 Text(
-                                    "$incomplete tugas tertunda",
+                                    stringResource(R.string.count_pending_tasks, incomplete),
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSecondaryContainer,
                                     modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(MaterialTheme.colorScheme.secondaryContainer).padding(horizontal = 8.dp, vertical = 2.dp)
@@ -665,7 +676,7 @@ private fun DashboardChildrenDialog(children: List<UserDto>, tasks: List<TaskDto
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Tutup") } }
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_close)) } }
     )
 }
 
@@ -673,11 +684,11 @@ private fun DashboardChildrenDialog(children: List<UserDto>, tasks: List<TaskDto
 private fun DashboardLockedDialog(children: List<UserDto>, loading: Boolean, onSetLock: (String, Boolean) -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Perangkat Terkunci") },
+        title = { Text(stringResource(R.string.title_locked_devices)) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 if (children.isEmpty()) {
-                    Text("Tidak ada perangkat yang terkunci saat ini.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.empty_no_locked_devices), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
                     children.forEach { child ->
                         Row(
@@ -686,13 +697,13 @@ private fun DashboardLockedDialog(children: List<UserDto>, loading: Boolean, onS
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(child.name, fontWeight = FontWeight.SemiBold)
-                            OutlinedButton(onClick = { onSetLock(child.id, false) }, enabled = !loading) { Text("Buka Kunci") }
+                            OutlinedButton(onClick = { onSetLock(child.id, false) }, enabled = !loading) { Text(stringResource(R.string.action_unlock)) }
                         }
                     }
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Tutup") } }
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_close)) } }
     )
 }
 
@@ -704,11 +715,11 @@ private fun DashboardTasksDialog(tasks: List<TaskDto>, children: List<UserDto>, 
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Semua Tugas") },
+        title = { Text(stringResource(R.string.title_all_tasks)) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (tasks.isEmpty()) {
-                    Text("Belum ada tugas.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.empty_no_tasks), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
                     tasks.forEach { task ->
                         TaskSummaryCard(task = task, childName = children.find { it.id == task.childId }?.name, onClick = { detailTask = task })
@@ -716,7 +727,7 @@ private fun DashboardTasksDialog(tasks: List<TaskDto>, children: List<UserDto>, 
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Tutup") } }
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_close)) } }
     )
 
     val currentDetailTask = detailTask
@@ -735,7 +746,7 @@ private fun DashboardTasksDialog(tasks: List<TaskDto>, children: List<UserDto>, 
 private fun IncompleteTasksByChildCard(children: List<UserDto>, tasks: List<TaskDto>) {
     Card {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
-            Text("Tugas Belum Selesai", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
+            Text(stringResource(R.string.heading_incomplete_tasks), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
             children.forEachIndexed { index, child ->
                 val incomplete = tasks.filter { it.childId == child.id && it.status != "approved" }
                 if (index > 0) {
@@ -748,7 +759,7 @@ private fun IncompleteTasksByChildCard(children: List<UserDto>, tasks: List<Task
                     if (incomplete.isNotEmpty()) {
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            "${incomplete.size} tertunda",
+                            stringResource(R.string.count_pending_short, incomplete.size),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSecondaryContainer,
                             modifier = Modifier
@@ -760,7 +771,7 @@ private fun IncompleteTasksByChildCard(children: List<UserDto>, tasks: List<Task
                 }
                 if (incomplete.isEmpty()) {
                     Text(
-                        "Semua tugas sudah selesai.",
+                        stringResource(R.string.empty_all_tasks_done),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -790,22 +801,22 @@ private fun IncompleteTasksByChildCard(children: List<UserDto>, tasks: List<Task
 fun DashboardChatPreviewCard(messages: List<ChatMessageDto>, currentUserId: String?, children: List<UserDto>) {
     Card {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
-            Text("Percakapan Grup Terakhir", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
+            Text(stringResource(R.string.heading_last_group_chat), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(6.dp))
             if (messages.isEmpty()) {
                 Text(
-                    "Belum ada percakapan di grup keluarga.",
+                    stringResource(R.string.empty_no_group_chat),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             } else {
                 messages.forEach { message ->
                     val senderLabel = when {
-                        message.senderId == currentUserId -> "Kamu"
-                        message.senderRole == "parent" -> "Orang Tua"
-                        else -> children.find { it.id == message.senderId }?.name ?: "Anak"
+                        message.senderId == currentUserId -> stringResource(R.string.label_you)
+                        message.senderRole == "parent" -> stringResource(R.string.label_parent_role)
+                        else -> children.find { it.id == message.senderId }?.name ?: stringResource(R.string.label_child_singular)
                     }
-                    val preview = if (message.type == "photo") "📷 Foto" else (message.text ?: "")
+                    val preview = if (message.type == "photo") stringResource(R.string.label_photo_preview) else (message.text ?: "")
                     Text(
                         "$senderLabel: $preview",
                         style = MaterialTheme.typography.bodySmall,
@@ -859,7 +870,7 @@ private fun ParentTaskListTab(
                 (statusFilter == null || task.status == statusFilter) && (childFilter == null || task.childId == childFilter)
             }
             if (filteredTasks.isEmpty()) {
-                Text("Tidak ada tugas yang cocok dengan filter.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.empty_no_filtered_tasks), color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -883,7 +894,7 @@ private fun ParentTaskListTab(
                 onClick = onCreateTask,
                 modifier = Modifier.align(Alignment.BottomEnd).padding(20.dp)
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Buat Tugas")
+                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.action_create_task))
             }
         }
     }
@@ -895,7 +906,7 @@ private fun ParentApprovalTab(state: UiState, onDecide: (taskId: String, approve
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         val waiting = state.tasks.filter { it.status == "submitted" }
         if (waiting.isEmpty()) {
-            Text("Belum ada tugas yang dikirim anak.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.empty_no_submitted_tasks), color = MaterialTheme.colorScheme.onSurfaceVariant)
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(waiting, key = { it.id }) { task ->
@@ -927,12 +938,12 @@ private fun ParentChatTab(
 ) {
     if (state.children.isEmpty()) {
         Box(Modifier.fillMaxSize().padding(16.dp)) {
-            Text("Belum ada profil anak untuk diajak chat.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.empty_no_children_for_chat), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         return
     }
     val activeThreadId = selectedThreadId ?: FAMILY_CHAT_THREAD_ID
-    val options = listOf(FAMILY_CHAT_THREAD_ID to "Semua Anak") + state.children.map { it.id to it.name }
+    val options = listOf(FAMILY_CHAT_THREAD_ID to stringResource(R.string.label_all_children)) + state.children.map { it.id to it.name }
     Column(Modifier.fillMaxSize()) {
         ChatSubTabs(
             options = options,
@@ -960,14 +971,14 @@ private fun ParentLockTab(
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         if (children.isEmpty()) {
             Text(
-                "Belum ada profil anak.",
+                stringResource(R.string.empty_no_children),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 12.dp)
             )
         } else {
             val lockedCount = children.count { it.lockModeEnabled }
             Text(
-                if (lockedCount == 0) "Tidak ada yang dikunci" else "$lockedCount dari ${children.size} anak dikunci",
+                if (lockedCount == 0) stringResource(R.string.label_none_locked) else stringResource(R.string.count_locked_of_total, lockedCount, children.size),
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = if (lockedCount > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
@@ -1007,7 +1018,7 @@ private fun ParentLockTab(
         }
 
         OutlinedButton(onClick = { showAddChild = true }, modifier = Modifier.fillMaxWidth()) {
-            Text("+ Tambah Anak")
+            Text(stringResource(R.string.action_add_child))
         }
     }
 
@@ -1027,11 +1038,11 @@ private fun WaitingTaskCard(task: TaskDto, childName: String?, token: String?, l
     Card {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
             Text(task.title, fontWeight = FontWeight.Bold)
-            if (childName != null) Text("Anak: $childName", style = MaterialTheme.typography.bodySmall)
-            Text("Hadiah: ${task.rewardMinutes} menit akses", color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Bold)
+            if (childName != null) Text(stringResource(R.string.label_child_colon, childName), style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.label_reward_minutes, task.rewardMinutes), color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Bold)
             if (!task.evidence.isNullOrBlank()) {
                 Spacer(Modifier.height(6.dp))
-                Text("Bukti: ${task.evidence}", style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.label_evidence_colon, task.evidence), style = MaterialTheme.typography.bodyMedium)
             }
             if (task.evidenceFiles.isNotEmpty() && token != null) {
                 Spacer(Modifier.height(8.dp))
@@ -1039,8 +1050,8 @@ private fun WaitingTaskCard(task: TaskDto, childName: String?, token: String?, l
             }
             Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { onDecide(task.id, true, "") }, enabled = !loading, shape = RoundedCornerShape(14.dp), modifier = Modifier.weight(1f)) { Text("Setujui") }
-                OutlinedButton(onClick = { showRejectDialog = true }, enabled = !loading, shape = RoundedCornerShape(14.dp), modifier = Modifier.weight(1f)) { Text("Tolak") }
+                Button(onClick = { onDecide(task.id, true, "") }, enabled = !loading, shape = RoundedCornerShape(14.dp), modifier = Modifier.weight(1f)) { Text(stringResource(R.string.action_approve)) }
+                OutlinedButton(onClick = { showRejectDialog = true }, enabled = !loading, shape = RoundedCornerShape(14.dp), modifier = Modifier.weight(1f)) { Text(stringResource(R.string.action_reject)) }
             }
         }
     }
@@ -1113,12 +1124,12 @@ private fun EvidenceFileThumbnail(token: String, taskId: String, file: EvidenceF
         when {
             bitmap != null -> Image(
                 bitmap = bitmap.asImageBitmap(),
-                contentDescription = "Foto bukti tugas",
+                contentDescription = stringResource(R.string.cd_task_evidence_photo),
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
             )
-            currentBytes != null && !isImage -> Icon(Icons.Default.Description, contentDescription = "Dokumen bukti tugas")
-            failed -> Icon(Icons.Default.ErrorOutline, contentDescription = "Gagal memuat", tint = MaterialTheme.colorScheme.error)
+            currentBytes != null && !isImage -> Icon(Icons.Default.Description, contentDescription = stringResource(R.string.cd_task_evidence_document))
+            failed -> Icon(Icons.Default.ErrorOutline, contentDescription = stringResource(R.string.cd_failed_to_load), tint = MaterialTheme.colorScheme.error)
             else -> CircularProgressIndicator(modifier = Modifier.size(20.dp))
         }
     }
@@ -1136,12 +1147,12 @@ private fun ImagePreviewDialog(bitmap: Bitmap, onDismiss: () -> Unit) {
         text = {
             Image(
                 bitmap = bitmap.asImageBitmap(),
-                contentDescription = "Pratinjau foto bukti",
+                contentDescription = stringResource(R.string.cd_evidence_preview),
                 contentScale = ContentScale.Fit,
                 modifier = Modifier.fillMaxWidth()
             )
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Tutup") } }
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_close)) } }
     )
 }
 
@@ -1166,7 +1177,9 @@ private fun openDocumentExternally(context: Context, bytes: ByteArray, fileId: S
         }
         context.startActivity(intent)
     } catch (error: Exception) {
-        Toast.makeText(context, "Tidak ada aplikasi yang bisa membuka jenis berkas ini di HP ini.", Toast.LENGTH_SHORT).show()
+        // Fungsi biasa (bukan @Composable) - stringResource() tidak berlaku di sini, pakai
+        // context.getString() langsung.
+        Toast.makeText(context, context.getString(R.string.error_no_app_for_file), Toast.LENGTH_SHORT).show()
     }
 }
 
@@ -1176,25 +1189,25 @@ private fun RejectTaskDialog(taskTitle: String, loading: Boolean, onDismiss: () 
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Tolak \"$taskTitle\"?") },
+        title = { Text(stringResource(R.string.title_reject_task, taskTitle)) },
         text = {
             Column {
                 Text(
-                    "Anak akan melihat tugas ini perlu diulang. Beri tahu alasannya (opsional).",
+                    stringResource(R.string.desc_reject_task),
                     style = MaterialTheme.typography.bodySmall
                 )
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     note, { note = it },
-                    label = { Text("Catatan untuk anak") },
+                    label = { Text(stringResource(R.string.label_note_for_child)) },
                     modifier = Modifier.fillMaxWidth()
                 )
             }
         },
         confirmButton = {
-            Button(onClick = { onConfirm(note.trim()) }, enabled = !loading) { Text("Tolak Tugas") }
+            Button(onClick = { onConfirm(note.trim()) }, enabled = !loading) { Text(stringResource(R.string.action_reject_task)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Batal") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
     )
 }
 
@@ -1213,7 +1226,7 @@ private fun TaskSummaryCard(task: TaskDto, childName: String?, onClick: () -> Un
             Column(Modifier.weight(1f)) {
                 Text(task.title, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
                 Text(
-                    (if (childName != null) "$childName · " else "") + "${task.rewardMinutes} menit",
+                    (if (childName != null) "$childName · " else "") + stringResource(R.string.count_minutes_short, task.rewardMinutes),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1233,24 +1246,24 @@ private fun TaskDetailDialog(task: TaskDto, childName: String?, token: String?, 
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 StatusChip(task.status)
-                if (childName != null) Text("Anak: $childName", style = MaterialTheme.typography.bodySmall)
-                Text("Hadiah: ${task.rewardMinutes} menit akses", color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Bold)
+                if (childName != null) Text(stringResource(R.string.label_child_colon, childName), style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.label_reward_minutes, task.rewardMinutes), color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Bold)
                 if (task.description.isNotBlank()) {
                     Text(task.description, style = MaterialTheme.typography.bodyMedium)
                 }
                 if (!task.evidence.isNullOrBlank()) {
-                    Text("Bukti (teks): ${task.evidence}", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.label_evidence_text_colon, task.evidence), style = MaterialTheme.typography.bodyMedium)
                 }
                 if (task.evidenceFiles.isNotEmpty() && token != null) {
-                    Text("Berkas bukti:", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.label_evidence_files_colon), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                     EvidenceGallery(token = token, task = task, thumbnailSize = 88.dp)
                 }
                 if (task.status == "rejected" && !task.decisionNote.isNullOrBlank()) {
-                    Text("Catatan orang tua: ${task.decisionNote}", style = MaterialTheme.typography.bodySmall)
+                    Text(stringResource(R.string.label_parent_note_colon, task.decisionNote), style = MaterialTheme.typography.bodySmall)
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Tutup") } }
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_close)) } }
     )
 }
 
@@ -1270,20 +1283,22 @@ private fun TaskFilterRow(
     val statuses = listOf("assigned", "submitted", "approved", "rejected")
 
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        val allChildrenLabel = stringResource(R.string.label_all_children)
+        val allStatusesLabel = stringResource(R.string.label_all_statuses)
         if (children.size > 1) {
             FilterDropdown(
                 modifier = Modifier.weight(1f),
-                label = "Anak",
-                selectedLabel = children.find { it.id == selectedChildId }?.name ?: "Semua Anak",
-                options = listOf<Pair<String?, String>>(null to "Semua Anak") + children.map { it.id to it.name },
+                label = stringResource(R.string.label_child_singular),
+                selectedLabel = children.find { it.id == selectedChildId }?.name ?: allChildrenLabel,
+                options = listOf<Pair<String?, String>>(null to allChildrenLabel) + children.map { it.id to it.name },
                 onSelect = onSelectChild
             )
         }
         FilterDropdown(
             modifier = Modifier.weight(1f),
-            label = "Status",
-            selectedLabel = selectedStatus?.let { statusLabel(it) } ?: "Semua Status",
-            options = listOf<Pair<String?, String>>(null to "Semua Status") + statuses.map { it to statusLabel(it) },
+            label = stringResource(R.string.label_status),
+            selectedLabel = selectedStatus?.let { statusLabel(it) } ?: allStatusesLabel,
+            options = listOf<Pair<String?, String>>(null to allStatusesLabel) + statuses.map { it to statusLabel(it) },
             onSelect = onSelectStatus
         )
     }
@@ -1296,20 +1311,20 @@ private fun AddChildDialog(loading: Boolean, onDismiss: () -> Unit, onSubmit: (S
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Tambah profil anak") },
+        title = { Text(stringResource(R.string.title_add_child_profile)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(name, { name = it }, label = { Text("Nama anak") }, modifier = Modifier.fillMaxWidth())
-                PasswordField(pin, { pin = it.filter { c -> c.isDigit() }.take(8) }, "PIN (4-8 digit)", KeyboardType.NumberPassword)
+                OutlinedTextField(name, { name = it }, label = { Text(stringResource(R.string.label_child_name)) }, modifier = Modifier.fillMaxWidth())
+                PasswordField(pin, { pin = it.filter { c -> c.isDigit() }.take(8) }, stringResource(R.string.label_pin_4to8), KeyboardType.NumberPassword)
             }
         },
         confirmButton = {
             Button(
                 onClick = { onSubmit(name.trim(), pin) },
                 enabled = !loading && name.isNotBlank() && pin.length in 4..8
-            ) { Text("Simpan") }
+            ) { Text(stringResource(R.string.action_save)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Batal") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
     )
 }
 
@@ -1330,7 +1345,7 @@ private fun CreateTaskDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Buat tugas baru") },
+        title = { Text(stringResource(R.string.title_create_task)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
@@ -1338,7 +1353,7 @@ private fun CreateTaskDialog(
                         value = selectedChild?.name ?: "",
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("Anak") },
+                        label = { Text(stringResource(R.string.label_child_singular)) },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                         modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable)
                     )
@@ -1351,11 +1366,11 @@ private fun CreateTaskDialog(
                         }
                     }
                 }
-                OutlinedTextField(title, { title = it }, label = { Text("Judul tugas") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(description, { description = it }, label = { Text("Deskripsi (opsional)") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(title, { title = it }, label = { Text(stringResource(R.string.label_task_title)) }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(description, { description = it }, label = { Text(stringResource(R.string.label_description_optional)) }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(
                     rewardText, { rewardText = it.filter { c -> c.isDigit() }.take(3) },
-                    label = { Text("Hadiah (menit, 1-240)") },
+                    label = { Text(stringResource(R.string.label_reward_minutes_field)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -1366,8 +1381,8 @@ private fun CreateTaskDialog(
                 onClick = { onSubmit(selectedChild!!.id, title.trim(), description.trim(), rewardMinutes!!) },
                 enabled = !loading && selectedChild != null && title.isNotBlank() &&
                     rewardMinutes != null && rewardMinutes in 1..240
-            ) { Text("Buat Tugas") }
+            ) { Text(stringResource(R.string.action_create_task)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Batal") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
     )
 }

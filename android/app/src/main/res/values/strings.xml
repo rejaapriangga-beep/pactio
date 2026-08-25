@@ -32,4 +32,131 @@
     <string name="action_register_family">Daftarkan Keluarga</string>
     <string name="label_password">Kata sandi</string>
     <string name="action_login">Masuk</string>
+
+    <!-- Components.kt -->
+    <string name="cd_hide_password">Sembunyikan</string>
+    <string name="cd_show_password">Tampilkan</string>
+    <string name="action_close">Tutup</string>
+
+    <!-- Models.kt: statusLabel() -->
+    <string name="status_assigned">Belum dikirim</string>
+    <string name="status_submitted">Menunggu persetujuan</string>
+    <string name="status_approved">Disetujui</string>
+    <string name="status_rejected">Ditolak</string>
+
+    <!-- Models.kt: activityActionLabel() -->
+    <string name="activity_login">Masuk ke akun</string>
+    <string name="activity_child_added">Menambahkan profil anak</string>
+    <string name="activity_child_removed">Menghapus profil anak</string>
+    <string name="activity_child_pin_reset">Mengatur ulang PIN anak</string>
+    <string name="activity_device_locked">Mengunci perangkat anak</string>
+    <string name="activity_device_unlocked">Membuka kunci perangkat anak</string>
+    <string name="activity_task_created">Membuat tugas baru</string>
+    <string name="activity_task_submitted">Mengirim bukti tugas</string>
+    <string name="activity_task_approved">Menyetujui tugas</string>
+    <string name="activity_task_rejected">Menolak tugas</string>
+    <string name="activity_access_redeemed">Menukar saldo menit jadi waktu akses</string>
+    <string name="activity_backup_created">Mengunduh backup terenkripsi</string>
+    <string name="role_parent_suffix">" (Orang Tua) "</string>
+    <string name="role_child_suffix">" (Anak) "</string>
+
+    <!-- ParentScreen.kt: tab -->
+    <string name="tab_dashboard">Dashboard</string>
+    <string name="tab_tasks">Tugas</string>
+    <string name="tab_approval">Approval</string>
+    <string name="tab_chat">Chat</string>
+    <string name="tab_lock">Kunci</string>
+
+    <!-- ParentScreen.kt: ParentSettingsDialog -->
+    <string name="heading_child_profiles">Profil Anak</string>
+    <string name="desc_child_pin_encrypted">PIN anak disimpan terenkripsi dan tidak bisa ditampilkan ulang. Kalau anak lupa PIN, gunakan Reset PIN.</string>
+    <string name="empty_no_children">Belum ada profil anak.</string>
+    <string name="cd_reset_pin_for">Reset PIN %1$s</string>
+    <string name="cd_delete_for">Hapus %1$s</string>
+    <string name="hint_add_child_moved">Tambah profil anak baru sekarang ada di tab Kunci Perangkat.</string>
+    <string name="heading_activity_log">Log Aktivitas</string>
+    <string name="empty_no_activity">Belum ada aktivitas tercatat.</string>
+    <string name="title_delete_child_confirm">Hapus profil %1$s?</string>
+    <string name="body_delete_child_confirm">Semua tugas, riwayat chat, dan foto bukti miliknya akan ikut terhapus, dan perangkat anak ini akan otomatis keluar. Tindakan ini tidak bisa dibatalkan.</string>
+    <string name="action_delete">Hapus</string>
+
+    <!-- ParentScreen.kt: Backup -->
+    <string name="heading_backup_data">Cadangan Data</string>
+    <string name="desc_backup">Unduh salinan data keluarga (profil anak, tugas, riwayat chat) sebagai berkas terenkripsi ke penyimpanan HP kamu. Kata sandinya kamu tentukan sendiri - server TIDAK menyimpannya.</string>
+    <string name="action_download_backup_encrypted">Unduh Backup Terenkripsi</string>
+    <string name="toast_backup_saved">Backup terenkripsi berhasil disimpan. Simpan kata sandinya baik-baik - server TIDAK menyimpannya.</string>
+    <string name="toast_backup_save_failed">Gagal menyimpan berkas backup.</string>
+    <string name="error_backup_create_failed">Gagal membuat backup.</string>
+    <string name="desc_backup_password">Buat kata sandi backup (minimal 8 karakter). Kata sandi ini HARUS kamu ingat sendiri - dipakai lagi nanti untuk membuka berkas ini, server tidak menyimpannya sama sekali.</string>
+    <string name="label_backup_password">Kata sandi backup</string>
+    <string name="label_repeat_password">Ulangi kata sandi</string>
+    <string name="error_password_mismatch">Kata sandi tidak sama.</string>
+    <string name="action_download_backup_short">Unduh Backup</string>
+
+    <!-- ParentScreen.kt: Reset PIN -->
+    <string name="body_reset_pin">PIN lama langsung tidak berlaku begitu PIN baru disimpan. Beri tahu PIN baru ini ke %1$s secara langsung.</string>
+    <string name="label_new_pin">PIN baru (4-8 digit)</string>
+    <string name="action_save_new_pin">Simpan PIN Baru</string>
+
+    <!-- ParentScreen.kt: Dashboard -->
+    <string name="label_family_fallback">Keluarga</string>
+    <string name="hint_no_children_add">Belum ada profil anak. Tambah lewat ikon gerigi Pengaturan di kanan atas.</string>
+    <string name="stat_pending_approval">Menunggu Approval</string>
+    <string name="stat_children">Anak</string>
+    <string name="stat_locked">Terkunci</string>
+    <string name="stat_total_tasks">Total Tugas</string>
+    <string name="action_create_task">Buat Tugas</string>
+    <string name="empty_no_pending_approval">Tidak ada tugas yang menunggu approval.</string>
+    <string name="count_pending_tasks">%1$d tugas tertunda</string>
+    <string name="title_locked_devices">Perangkat Terkunci</string>
+    <string name="empty_no_locked_devices">Tidak ada perangkat yang terkunci saat ini.</string>
+    <string name="action_unlock">Buka Kunci</string>
+    <string name="title_all_tasks">Semua Tugas</string>
+    <string name="empty_no_tasks">Belum ada tugas.</string>
+    <string name="heading_incomplete_tasks">Tugas Belum Selesai</string>
+    <string name="count_pending_short">%1$d tertunda</string>
+    <string name="empty_all_tasks_done">Semua tugas sudah selesai.</string>
+    <string name="heading_last_group_chat">Percakapan Grup Terakhir</string>
+    <string name="empty_no_group_chat">Belum ada percakapan di grup keluarga.</string>
+    <string name="label_you">Kamu</string>
+    <string name="label_parent_role">Orang Tua</string>
+    <string name="label_photo_preview">📷 Foto</string>
+    <string name="empty_no_filtered_tasks">Tidak ada tugas yang cocok dengan filter.</string>
+    <string name="empty_no_submitted_tasks">Belum ada tugas yang dikirim anak.</string>
+    <string name="label_all_children">Semua Anak</string>
+    <string name="empty_no_children_for_chat">Belum ada profil anak untuk diajak chat.</string>
+    <string name="label_none_locked">Tidak ada yang dikunci</string>
+    <string name="count_locked_of_total">%1$d dari %2$d anak dikunci</string>
+    <string name="label_child_singular">Anak</string>
+
+    <!-- ParentScreen.kt: Kunci, WaitingTaskCard, dokumen bukti -->
+    <string name="action_add_child">+ Tambah Anak</string>
+    <string name="label_child_colon">Anak: %1$s</string>
+    <string name="label_reward_minutes">Hadiah: %1$d menit akses</string>
+    <string name="label_evidence_colon">Bukti: %1$s</string>
+    <string name="action_approve">Setujui</string>
+    <string name="action_reject">Tolak</string>
+    <string name="cd_task_evidence_photo">Foto bukti tugas</string>
+    <string name="cd_task_evidence_document">Dokumen bukti tugas</string>
+    <string name="cd_failed_to_load">Gagal memuat</string>
+    <string name="cd_evidence_preview">Pratinjau foto bukti</string>
+    <string name="error_no_app_for_file">Tidak ada aplikasi yang bisa membuka jenis berkas ini di HP ini.</string>
+    <string name="title_reject_task">Tolak \"%1$s\"?</string>
+    <string name="desc_reject_task">Anak akan melihat tugas ini perlu diulang. Beri tahu alasannya (opsional).</string>
+    <string name="label_note_for_child">Catatan untuk anak</string>
+    <string name="action_reject_task">Tolak Tugas</string>
+    <string name="count_minutes_short">%1$d menit</string>
+    <string name="label_evidence_text_colon">Bukti (teks): %1$s</string>
+    <string name="label_evidence_files_colon">Berkas bukti:</string>
+    <string name="label_parent_note_colon">Catatan orang tua: %1$s</string>
+    <string name="label_status">Status</string>
+    <string name="label_all_statuses">Semua Status</string>
+    <string name="title_add_child_profile">Tambah profil anak</string>
+    <string name="label_child_name">Nama anak</string>
+    <string name="label_pin_4to8">PIN (4-8 digit)</string>
+    <string name="action_save">Simpan</string>
+    <string name="title_create_task">Buat tugas baru</string>
+    <string name="label_task_title">Judul tugas</string>
+    <string name="label_description_optional">Deskripsi (opsional)</string>
+    <string name="label_reward_minutes_field">Hadiah (menit, 1-240)</string>
 </resources>

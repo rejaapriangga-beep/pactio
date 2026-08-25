@@ -26,4 +26,131 @@
     <string name="action_register_family">Register Family</string>
     <string name="label_password">Password</string>
     <string name="action_login">Sign In</string>
+
+    <!-- Components.kt -->
+    <string name="cd_hide_password">Hide</string>
+    <string name="cd_show_password">Show</string>
+    <string name="action_close">Close</string>
+
+    <!-- Models.kt: statusLabel() -->
+    <string name="status_assigned">Not submitted yet</string>
+    <string name="status_submitted">Awaiting approval</string>
+    <string name="status_approved">Approved</string>
+    <string name="status_rejected">Rejected</string>
+
+    <!-- Models.kt: activityActionLabel() -->
+    <string name="activity_login">Signed in</string>
+    <string name="activity_child_added">Added a child profile</string>
+    <string name="activity_child_removed">Removed a child profile</string>
+    <string name="activity_child_pin_reset">Reset a child\'s PIN</string>
+    <string name="activity_device_locked">Locked child\'s device</string>
+    <string name="activity_device_unlocked">Unlocked child\'s device</string>
+    <string name="activity_task_created">Created a new task</string>
+    <string name="activity_task_submitted">Submitted task evidence</string>
+    <string name="activity_task_approved">Approved a task</string>
+    <string name="activity_task_rejected">Rejected a task</string>
+    <string name="activity_access_redeemed">Redeemed minutes for screen time</string>
+    <string name="activity_backup_created">Downloaded an encrypted backup</string>
+    <string name="role_parent_suffix">" (Parent) "</string>
+    <string name="role_child_suffix">" (Child) "</string>
+
+    <!-- ParentScreen.kt: tab -->
+    <string name="tab_dashboard">Dashboard</string>
+    <string name="tab_tasks">Tasks</string>
+    <string name="tab_approval">Approvals</string>
+    <string name="tab_chat">Chat</string>
+    <string name="tab_lock">Lock</string>
+
+    <!-- ParentScreen.kt: ParentSettingsDialog -->
+    <string name="heading_child_profiles">Child Profiles</string>
+    <string name="desc_child_pin_encrypted">A child\'s PIN is stored encrypted and can\'t be shown again. If your child forgets their PIN, use Reset PIN.</string>
+    <string name="empty_no_children">No child profiles yet.</string>
+    <string name="cd_reset_pin_for">Reset PIN for %1$s</string>
+    <string name="cd_delete_for">Delete %1$s</string>
+    <string name="hint_add_child_moved">Adding a new child profile is now under the Device Lock tab.</string>
+    <string name="heading_activity_log">Activity Log</string>
+    <string name="empty_no_activity">No activity recorded yet.</string>
+    <string name="title_delete_child_confirm">Delete %1$s\'s profile?</string>
+    <string name="body_delete_child_confirm">All of their tasks, chat history, and evidence photos will be deleted too, and this child\'s device will be signed out automatically. This can\'t be undone.</string>
+    <string name="action_delete">Delete</string>
+
+    <!-- ParentScreen.kt: Backup -->
+    <string name="heading_backup_data">Backup Data</string>
+    <string name="desc_backup">Download a copy of your family data (child profiles, tasks, chat history) as an encrypted file to your phone\'s storage. You choose the password yourself - the server does NOT store it.</string>
+    <string name="action_download_backup_encrypted">Download Encrypted Backup</string>
+    <string name="toast_backup_saved">Encrypted backup saved successfully. Keep the password safe - the server does NOT store it.</string>
+    <string name="toast_backup_save_failed">Failed to save the backup file.</string>
+    <string name="error_backup_create_failed">Failed to create backup.</string>
+    <string name="desc_backup_password">Create a backup password (at least 8 characters). You MUST remember this password yourself - you\'ll need it again to open this file, the server does not store it at all.</string>
+    <string name="label_backup_password">Backup password</string>
+    <string name="label_repeat_password">Repeat password</string>
+    <string name="error_password_mismatch">Passwords don\'t match.</string>
+    <string name="action_download_backup_short">Download Backup</string>
+
+    <!-- ParentScreen.kt: Reset PIN -->
+    <string name="body_reset_pin">The old PIN stops working as soon as the new one is saved. Tell %1$s the new PIN directly.</string>
+    <string name="label_new_pin">New PIN (4-8 digits)</string>
+    <string name="action_save_new_pin">Save New PIN</string>
+
+    <!-- ParentScreen.kt: Dashboard -->
+    <string name="label_family_fallback">Family</string>
+    <string name="hint_no_children_add">No child profiles yet. Add one from the Settings gear icon at the top right.</string>
+    <string name="stat_pending_approval">Pending Approval</string>
+    <string name="stat_children">Children</string>
+    <string name="stat_locked">Locked</string>
+    <string name="stat_total_tasks">Total Tasks</string>
+    <string name="action_create_task">Create Task</string>
+    <string name="empty_no_pending_approval">No tasks awaiting approval.</string>
+    <string name="count_pending_tasks">%1$d pending task(s)</string>
+    <string name="title_locked_devices">Locked Devices</string>
+    <string name="empty_no_locked_devices">No devices are currently locked.</string>
+    <string name="action_unlock">Unlock</string>
+    <string name="title_all_tasks">All Tasks</string>
+    <string name="empty_no_tasks">No tasks yet.</string>
+    <string name="heading_incomplete_tasks">Incomplete Tasks</string>
+    <string name="count_pending_short">%1$d pending</string>
+    <string name="empty_all_tasks_done">All tasks are done.</string>
+    <string name="heading_last_group_chat">Latest Group Chat</string>
+    <string name="empty_no_group_chat">No messages in the family group yet.</string>
+    <string name="label_you">You</string>
+    <string name="label_parent_role">Parent</string>
+    <string name="label_photo_preview">📷 Photo</string>
+    <string name="empty_no_filtered_tasks">No tasks match this filter.</string>
+    <string name="empty_no_submitted_tasks">No tasks submitted by children yet.</string>
+    <string name="label_all_children">All Children</string>
+    <string name="empty_no_children_for_chat">No child profiles to chat with yet.</string>
+    <string name="label_none_locked">Nothing is locked</string>
+    <string name="count_locked_of_total">%1$d of %2$d children locked</string>
+    <string name="label_child_singular">Child</string>
+
+    <!-- ParentScreen.kt: Kunci, WaitingTaskCard, dokumen bukti -->
+    <string name="action_add_child">+ Add Child</string>
+    <string name="label_child_colon">Child: %1$s</string>
+    <string name="label_reward_minutes">Reward: %1$d minutes of access</string>
+    <string name="label_evidence_colon">Evidence: %1$s</string>
+    <string name="action_approve">Approve</string>
+    <string name="action_reject">Reject</string>
+    <string name="cd_task_evidence_photo">Task evidence photo</string>
+    <string name="cd_task_evidence_document">Task evidence document</string>
+    <string name="cd_failed_to_load">Failed to load</string>
+    <string name="cd_evidence_preview">Evidence photo preview</string>
+    <string name="error_no_app_for_file">No app on this phone can open this type of file.</string>
+    <string name="title_reject_task">Reject \"%1$s\"?</string>
+    <string name="desc_reject_task">Your child will see that this task needs to be redone. Give a reason (optional).</string>
+    <string name="label_note_for_child">Note for your child</string>
+    <string name="action_reject_task">Reject Task</string>
+    <string name="count_minutes_short">%1$d min</string>
+    <string name="label_evidence_text_colon">Evidence (text): %1$s</string>
+    <string name="label_evidence_files_colon">Evidence files:</string>
+    <string name="label_parent_note_colon">Parent\'s note: %1$s</string>
+    <string name="label_status">Status</string>
+    <string name="label_all_statuses">All Statuses</string>
+    <string name="title_add_child_profile">Add child profile</string>
+    <string name="label_child_name">Child\'s name</string>
+    <string name="label_pin_4to8">PIN (4-8 digits)</string>
+    <string name="action_save">Save</string>
+    <string name="title_create_task">Create new task</string>
+    <string name="label_task_title">Task title</string>
+    <string name="label_description_optional">Description (optional)</string>
+    <string name="label_reward_minutes_field">Reward (minutes, 1-240)</string>
 </resources>

@@ -1,5 +1,9 @@
 package com.keluargakendali.data
 
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
+import com.keluargakendali.R
+
 /**
  * Model data yang mengikuti persis field JSON yang dikembalikan backend (server.js).
  * Jangan menambah/menghapus field tanpa mengecek ulang backend terlebih dahulu.
@@ -138,11 +142,12 @@ data class BackupResult(
     val ciphertext: String
 )
 
+@Composable
 fun statusLabel(status: String): String = when (status) {
-    "assigned" -> "Belum dikirim"
-    "submitted" -> "Menunggu persetujuan"
-    "approved" -> "Disetujui"
-    "rejected" -> "Ditolak"
+    "assigned" -> stringResource(R.string.status_assigned)
+    "submitted" -> stringResource(R.string.status_submitted)
+    "approved" -> stringResource(R.string.status_approved)
+    "rejected" -> stringResource(R.string.status_rejected)
     else -> status
 }
 
@@ -161,19 +166,24 @@ data class ActivityLogEntryDto(
     val createdAt: String
 )
 
-/** Label Indonesia untuk tiap kode `action` - HARUS sinkron dengan ACTIVITY_ACTION_LABEL di web/app.js. */
+/**
+ * Label untuk tiap kode `action`, mengikuti bahasa aktif (lihat strings.xml/values-en) - HARUS
+ * tetap sinkron secara MAKNA dengan ACTIVITY_ACTION_LABEL di web/app.js (web belum ada versi
+ * Inggris, tetap Indonesia).
+ */
+@Composable
 fun activityActionLabel(action: String): String = when (action) {
-    "login" -> "Masuk ke akun"
-    "child_added" -> "Menambahkan profil anak"
-    "child_removed" -> "Menghapus profil anak"
-    "child_pin_reset" -> "Mengatur ulang PIN anak"
-    "device_locked" -> "Mengunci perangkat anak"
-    "device_unlocked" -> "Membuka kunci perangkat anak"
-    "task_created" -> "Membuat tugas baru"
-    "task_submitted" -> "Mengirim bukti tugas"
-    "task_approved" -> "Menyetujui tugas"
-    "task_rejected" -> "Menolak tugas"
-    "access_redeemed" -> "Menukar saldo menit jadi waktu akses"
-    "backup_created" -> "Mengunduh backup terenkripsi"
+    "login" -> stringResource(R.string.activity_login)
+    "child_added" -> stringResource(R.string.activity_child_added)
+    "child_removed" -> stringResource(R.string.activity_child_removed)
+    "child_pin_reset" -> stringResource(R.string.activity_child_pin_reset)
+    "device_locked" -> stringResource(R.string.activity_device_locked)
+    "device_unlocked" -> stringResource(R.string.activity_device_unlocked)
+    "task_created" -> stringResource(R.string.activity_task_created)
+    "task_submitted" -> stringResource(R.string.activity_task_submitted)
+    "task_approved" -> stringResource(R.string.activity_task_approved)
+    "task_rejected" -> stringResource(R.string.activity_task_rejected)
+    "access_redeemed" -> stringResource(R.string.activity_access_redeemed)
+    "backup_created" -> stringResource(R.string.activity_backup_created)
     else -> action
 }
