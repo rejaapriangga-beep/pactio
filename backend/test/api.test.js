@@ -29,3 +29,26 @@ test("orang tua dapat memberi hadiah akses setelah tugas disetujui", async () =>
   const balance = await request("/access-balance", { headers: childAuth });
   assert.equal(balance.body.minutes, 20);
 });
+
+test("chat grup keluarga (thread \"family\") tidak bocor ke keluarga lain", async () => {
+  const suffix = Date.now();
+  const familyA = await request("/auth/register-parent", { method: "POST", body: JSON.stringify({ familyName: "Keluarga A", name: "Ayah A", email: `ayahA${suffix}@contoh.id`, password: "rahasia-aman" }) });
+  const familyB = await request("/auth/register-parent", { method: "POST", body: JSON.stringify({ familyName: "Keluarga B", name: "Ayah B", email: `ayahB${suffix}@contoh.id`, password: "rahasia-aman" }) });
+  const authA = { Authorization: `Bearer ${familyA.body.token}` };
+  const authB = { Authorization: `Bearer ${familyB.body.token}` };
+
+  const sent = await request("/chat/family/messages", { method: "POST", headers: authA, body: JSON.stringify({ type: "text", text: "Pesan rahasia keluarga A" }) });
+  assert.equal(sent.status, 201);
+
+  // Keluarga B TIDAK boleh melihat pesan grup keluarga A di thread "family" miliknya sendiri.
+  const seenByB = await request("/chat/family/messages", { headers: authB });
+  assert.equal(seenByB.status, 200);
+  assert.deepEqual(seenByB.body.messages, []);
+
+  // Keluarga A tetap melihat pesannya sendiri seperti biasa.
+  const seenByA = await request("/chat/family/messages", { headers: authA });
+  assert.equal(seenByA.body.messages.length, 1);
+  assert.equal(seenByA.body.messages[0].text, "Pesan rahasia keluarga A");
+  // Kontrak API klien tidak berubah - childId yang dikembalikan tetap sentinel "family".
+  assert.equal(seenByA.body.messages[0].childId, "family");
+});

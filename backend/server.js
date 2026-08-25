@@ -113,6 +113,28 @@ function loadData() {
     if (!Array.isArray(message.reactions)) message.reactions = [];
     if (message.replyToId === undefined) message.replyToId = null;
   }
+  // Migrasi PERBAIKAN BUG KEAMANAN: sebelum ini, childId thread grup keluarga SELALU literal
+  // "family" (FAMILY_THREAD_KEY) untuk SEMUA keluarga sekaligus - artinya thread ini sebenarnya
+  // satu bucket global yang dibagi semua keluarga di server, bukan per-keluarga (lihat
+  // internalThreadKey di bawah untuk perbaikannya). Pesan lama di sini dipetakan ulang ke kunci
+  // per-keluarga (`family:<familyId>`) berdasarkan familyId PENGIRIM pesan itu sendiri (satu-satunya
+  // info yang pasti benar untuk tiap pesan) supaya riwayat lama tetap ada dan langsung terisolasi
+  // per keluarga, bukan hilang atau tetap tercampur. Status "sudah dibaca" (chatReadState) per
+  // pengguna dipetakan ulang serupa, berdasarkan familyId PEMILIK cursor itu sendiri.
+  const usersById = new Map((loaded.users || []).map((item) => [item.id, item]));
+  for (const message of loaded.chatMessages || []) {
+    if (message.childId === FAMILY_THREAD_KEY) {
+      const sender = usersById.get(message.senderId);
+      if (sender && sender.familyId) message.childId = `${FAMILY_THREAD_KEY}:${sender.familyId}`;
+    }
+  }
+  for (const [userId, cursors] of Object.entries(loaded.chatReadState || {})) {
+    if (cursors && Object.prototype.hasOwnProperty.call(cursors, FAMILY_THREAD_KEY)) {
+      const owner = usersById.get(userId);
+      if (owner && owner.familyId) cursors[`${FAMILY_THREAD_KEY}:${owner.familyId}`] = cursors[FAMILY_THREAD_KEY];
+      delete cursors[FAMILY_THREAD_KEY];
+    }
+  }
   return loaded;
 }
 
@@ -252,7 +274,8 @@ function familyDataSnapshot(familyId) {
   const family = db.families.find((item) => item.id === familyId);
   const users = db.users.filter((item) => item.familyId === familyId);
   const childIds = users.filter((item) => item.role === "child").map((item) => item.id);
-  const threadKeys = new Set([FAMILY_THREAD_KEY, ...childIds]);
+  // Kunci penyimpanan ASLI (bukan sentinel klien "family") - lihat internalThreadKey().
+  const threadKeys = new Set([`${FAMILY_THREAD_KEY}:${familyId}`, ...childIds]);
   return {
     exportedAt: new Date().toISOString(),
     family: { id: family.id, name: family.name, code: family.code },
@@ -470,6 +493,22 @@ function canAccessChatThread(user, threadKey) {
   return db.users.some((item) => item.id === threadKey && item.familyId === user.familyId && item.role === "child");
 }
 
+/**
+ * PERBAIKAN BUG KEAMANAN (lintas-keluarga): threadKey yang dikirim/diterima KLIEN untuk grup
+ * keluarga selalu literal FAMILY_THREAD_KEY ("family") - kontrak API TIDAK berubah, klien
+ * (lihat FAMILY_CHAT_THREAD_ID di Android) tidak perlu tahu apa pun soal ini. Tapi threadKey itu
+ * TIDAK BOLEH dipakai apa adanya sebagai childId penyimpanan/pencarian pesan - kalau iya, semua
+ * keluarga di server ini berbagi SATU thread grup yang sama (persis bug yang dilaporkan: pesan
+ * keluarga lain ikut muncul). Fungsi ini menerjemahkan sentinel "family" itu menjadi kunci
+ * penyimpanan yang unik PER KELUARGA (mis. "family:fam_xxx") SEBELUM dipakai untuk
+ * menyimpan/memfilter/menandai-dibaca pesan. Thread privat per-anak tidak perlu diterjemahkan -
+ * id anak sudah unik secara global dan canAccessChatThread() di atas sudah memastikan hanya
+ * keluarga anak itu sendiri yang boleh mengaksesnya.
+ */
+function internalThreadKey(user, threadKey) {
+  return threadKey === FAMILY_THREAD_KEY ? `${FAMILY_THREAD_KEY}:${user.familyId}` : threadKey;
+}
+
 /** Thread key dipakai juga untuk menyimpan cursor "sudah dibaca sampai" per pengguna. */
 function chatReadCursor(userId, childId) {
   return db.chatReadState[userId]?.[childId] || null;
@@ -518,7 +557,10 @@ function sweepStaleChatPhotos() {
 function publicChatMessage(message) {
   return {
     id: message.id,
-    childId: message.childId,
+    // Kebalikan dari internalThreadKey() - klien selalu melihat sentinel "family" untuk thread
+    // grup keluarga, tidak pernah kunci internal per-keluarga ("family:fam_xxx") yang sebenarnya
+    // dipakai untuk penyimpanan (lihat internalThreadKey di atas). Kontrak API klien tetap sama.
+    childId: message.childId.startsWith(`${FAMILY_THREAD_KEY}:`) ? FAMILY_THREAD_KEY : message.childId,
     senderId: message.senderId,
     senderRole: message.senderRole,
     type: message.type,
@@ -900,7 +942,7 @@ async function route(req, res) {
       ? [user.id]
       : db.users.filter((item) => item.familyId === user.familyId && item.role === "child").map((item) => item.id);
     const threadKeys = [FAMILY_THREAD_KEY, ...childIds];
-    const threads = threadKeys.map((childId) => ({ childId, unreadCount: unreadCountFor(user.id, childId) }));
+    const threads = threadKeys.map((childId) => ({ childId, unreadCount: unreadCountFor(user.id, internalThreadKey(user, childId)) }));
     const total = threads.reduce((sum, thread) => sum + thread.unreadCount, 0);
     return send(res, 200, { total, threads });
   }
@@ -910,9 +952,10 @@ async function route(req, res) {
     const user = auth(req, res); if (!user) return;
     const threadKey = chatMessagesMatch[1];
     if (!canAccessChatThread(user, threadKey)) return send(res, 404, { error: "Thread chat tidak ditemukan." });
+    const storageKey = internalThreadKey(user, threadKey);
     // Riwayat kecil (satu keluarga, bukan aplikasi chat umum) - cukup ambil semua lalu potong
     // 200 pesan terakhir, tidak perlu paginasi bertingkat.
-    const thread = db.chatMessages.filter((message) => message.childId === threadKey).slice(-200);
+    const thread = db.chatMessages.filter((message) => message.childId === storageKey).slice(-200);
     return send(res, 200, { messages: thread.map(publicChatMessage) });
   }
 
@@ -920,11 +963,12 @@ async function route(req, res) {
     const user = auth(req, res); if (!user) return;
     const threadKey = chatMessagesMatch[1];
     if (!canAccessChatThread(user, threadKey)) return send(res, 404, { error: "Thread chat tidak ditemukan." });
+    const storageKey = internalThreadKey(user, threadKey);
     const body = await bodyOf(req);
     const type = body.type === "photo" ? "photo" : "text";
 
     const message = {
-      id: id("chatmsg"), childId: threadKey, senderId: user.id, senderRole: user.role,
+      id: id("chatmsg"), childId: storageKey, senderId: user.id, senderRole: user.role,
       type, text: null, textEnc: null, photoMime: null, photoAvailable: false,
       replyToId: null, reactions: [], createdAt: new Date().toISOString()
     };
@@ -933,7 +977,7 @@ async function route(req, res) {
     // ada di THREAD YANG SAMA (bukan thread lain) - diam-diam diabaikan kalau tidak valid, bukan
     // ditolak, supaya UI tidak perlu penanganan error khusus untuk hal kecil seperti ini.
     if (typeof body.replyToId === "string" && body.replyToId) {
-      const target = db.chatMessages.find((item) => item.id === body.replyToId && item.childId === threadKey);
+      const target = db.chatMessages.find((item) => item.id === body.replyToId && item.childId === storageKey);
       if (target) message.replyToId = target.id;
     }
 
@@ -965,7 +1009,8 @@ async function route(req, res) {
     const user = auth(req, res); if (!user) return;
     const threadKey = chatPhotoMatch[1];
     if (!canAccessChatThread(user, threadKey)) return send(res, 404, { error: "Thread chat tidak ditemukan." });
-    const message = db.chatMessages.find((item) => item.id === chatPhotoMatch[2] && item.childId === threadKey);
+    const storageKey = internalThreadKey(user, threadKey);
+    const message = db.chatMessages.find((item) => item.id === chatPhotoMatch[2] && item.childId === storageKey);
     if (!message || message.type !== "photo" || !message.photoAvailable) {
       return send(res, 404, { error: "Foto sudah tidak tersedia di server (hanya diteruskan sementara, lihat salinan lokal kamu)." });
     }
@@ -984,7 +1029,8 @@ async function route(req, res) {
     const user = auth(req, res); if (!user) return;
     const threadKey = chatReactMatch[1];
     if (!canAccessChatThread(user, threadKey)) return send(res, 404, { error: "Thread chat tidak ditemukan." });
-    const message = db.chatMessages.find((item) => item.id === chatReactMatch[2] && item.childId === threadKey);
+    const storageKey = internalThreadKey(user, threadKey);
+    const message = db.chatMessages.find((item) => item.id === chatReactMatch[2] && item.childId === storageKey);
     if (!message) return send(res, 404, { error: "Pesan tidak ditemukan." });
     const body = await bodyOf(req);
     const emoji = String(body.emoji || "");
@@ -1005,7 +1051,7 @@ async function route(req, res) {
     const user = auth(req, res); if (!user) return;
     const threadKey = chatReadMatch[1];
     if (!canAccessChatThread(user, threadKey)) return send(res, 404, { error: "Thread chat tidak ditemukan." });
-    setChatReadCursor(user.id, threadKey, new Date().toISOString());
+    setChatReadCursor(user.id, internalThreadKey(user, threadKey), new Date().toISOString());
     save();
     return send(res, 200, { ok: true });
   }
