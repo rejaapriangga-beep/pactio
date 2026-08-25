@@ -79,6 +79,12 @@
     <string name="title_delete_child_confirm">Hapus profil %1$s?</string>
     <string name="body_delete_child_confirm">Semua tugas, riwayat chat, dan foto bukti miliknya akan ikut terhapus, dan perangkat anak ini akan otomatis keluar. Tindakan ini tidak bisa dibatalkan.</string>
     <string name="action_delete">Hapus</string>
+    <string name="heading_danger_zone">Zona Berbahaya</string>
+    <string name="desc_delete_account">Menghapus akun ini akan menghapus SELURUH keluarga secara permanen: akun orang tua, semua profil anak, tugas, riwayat chat, dan log aktivitas. Tindakan ini tidak bisa dibatalkan.</string>
+    <string name="action_delete_account">Hapus Akun</string>
+    <string name="title_delete_account_confirm">Hapus akun secara permanen?</string>
+    <string name="body_delete_account_confirm">Semua data keluarga ini (akun orang tua, profil anak, tugas, foto bukti, dan riwayat chat) akan dihapus permanen dari server dan tidak bisa dikembalikan. Masukkan kata sandi kamu untuk konfirmasi.</string>
+    <string name="info_account_deleted">Akun dan semua data keluarga sudah dihapus permanen.</string>
 
     <!-- ParentScreen.kt: Backup -->
     <string name="heading_backup_data">Cadangan Data</string>

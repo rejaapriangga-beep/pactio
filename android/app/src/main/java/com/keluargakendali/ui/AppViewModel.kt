@@ -131,6 +131,37 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * Hapus SELURUH akun keluarga secara permanen (dipanggil dari Pengaturan orang tua) - minta
+     * konfirmasi ulang kata sandi dulu ke server (dibalas 403 kalau salah, bukan 401 - lihat
+     * catatan di server.js), sama pola & alasannya dengan confirmChildLogout di atas: error kata
+     * sandi salah harus tampil DI DALAM dialog lewat onWrongPassword, bukan banner error global.
+     * ApiException.Unauthorized (401) di sini murni berarti SESI SAAT INI sendiri sudah tidak
+     * valid lagi (bukan kata sandi salah) - langsung logout paksa, sama seperti
+     * confirmChildLogout. Kalau berhasil, server sudah menghapus semua data & mencabut sesi ini
+     * sendiri - langsung logout lokal, tidak ada lagi yang perlu disinkronkan.
+     */
+    fun deleteAccount(password: String, onWrongPassword: (String) -> Unit) {
+        val token = _state.value.token ?: return
+        viewModelScope.launch {
+            _state.update { it.copy(loading = true) }
+            try {
+                PactioApi.deleteAccount(token, password)
+                tokenStore.clear()
+                _state.value = UiState(infoMessage = str(R.string.info_account_deleted))
+            } catch (error: ApiException.Unauthorized) {
+                tokenStore.clear()
+                _state.value = UiState(errorMessage = str(R.string.error_session_expired))
+            } catch (error: ApiException) {
+                onWrongPassword(error.message ?: str(R.string.error_no_connection))
+                _state.update { it.copy(loading = false) }
+            } catch (error: Exception) {
+                onWrongPassword(str(R.string.error_no_connection))
+                _state.update { it.copy(loading = false) }
+            }
+        }
+    }
+
     fun addChild(name: String, pin: String) = requireToken { token ->
         PactioApi.addChild(token, name, pin)
         loadFamily(token)

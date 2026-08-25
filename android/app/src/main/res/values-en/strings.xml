@@ -73,6 +73,12 @@
     <string name="title_delete_child_confirm">Delete %1$s\'s profile?</string>
     <string name="body_delete_child_confirm">All of their tasks, chat history, and evidence photos will be deleted too, and this child\'s device will be signed out automatically. This can\'t be undone.</string>
     <string name="action_delete">Delete</string>
+    <string name="heading_danger_zone">Danger Zone</string>
+    <string name="desc_delete_account">Deleting this account permanently removes the ENTIRE family: the parent account, every child profile, tasks, chat history, and activity log. This can\'t be undone.</string>
+    <string name="action_delete_account">Delete Account</string>
+    <string name="title_delete_account_confirm">Permanently delete this account?</string>
+    <string name="body_delete_account_confirm">All of this family\'s data (parent account, child profiles, tasks, evidence photos, and chat history) will be permanently deleted from the server and can\'t be recovered. Enter your password to confirm.</string>
+    <string name="info_account_deleted">Your account and all family data have been permanently deleted.</string>
 
     <!-- ParentScreen.kt: Backup -->
     <string name="heading_backup_data">Backup Data</string>

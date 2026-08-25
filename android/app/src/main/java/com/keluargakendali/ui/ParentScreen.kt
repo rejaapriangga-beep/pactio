@@ -201,10 +201,12 @@ fun ParentSettingsDialog(
     loading: Boolean,
     onDeleteChild: (childId: String) -> Unit,
     onResetPin: (childId: String, pin: String) -> Unit,
+    onDeleteAccount: (password: String, onWrongPassword: (String) -> Unit) -> Unit,
     onDismiss: () -> Unit
 ) {
     var childPendingDelete by remember { mutableStateOf<UserDto?>(null) }
     var childPendingResetPin by remember { mutableStateOf<UserDto?>(null) }
+    var showDeleteAccountDialog by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -262,10 +264,38 @@ fun ParentSettingsDialog(
                 } else {
                     activityLog.forEach { entry -> ActivityLogRow(entry) }
                 }
+
+                Spacer(Modifier.height(20.dp))
+                HorizontalDivider()
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    stringResource(R.string.heading_danger_zone),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.error
+                )
+                Text(
+                    stringResource(R.string.desc_delete_account),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = { showDeleteAccountDialog = true },
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) { Text(stringResource(R.string.action_delete_account)) }
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_close)) } }
     )
+
+    if (showDeleteAccountDialog) {
+        DeleteAccountDialog(
+            loading = loading,
+            onDismiss = { showDeleteAccountDialog = false },
+            onConfirm = { password, onWrongPassword -> onDeleteAccount(password, onWrongPassword) }
+        )
+    }
 
     val resetPinTarget = childPendingResetPin
     if (resetPinTarget != null) {
@@ -432,6 +462,49 @@ private fun ResetPinDialog(childName: String, loading: Boolean, onDismiss: () ->
         },
         confirmButton = {
             Button(onClick = { onSubmit(pin) }, enabled = !loading && pin.length in 4..8) { Text(stringResource(R.string.action_save_new_pin)) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
+    )
+}
+
+/**
+ * Konfirmasi hapus akun permanen - minta kata sandi orang tua sekali lagi (lihat catatan di
+ * AppViewModel.deleteAccount/server.js kenapa ini wajib), pola errornya sama dengan
+ * ChildLogoutDialog di MainActivity.kt & BackupPasswordDialog di atas: error tampil DI DALAM
+ * dialog ini lewat callback onWrongPassword, bukan banner error global, supaya tidak
+ * mengejutkan/menutup dialog begitu saja saat kata sandinya salah.
+ */
+@Composable
+private fun DeleteAccountDialog(
+    loading: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: (password: String, onWrongPassword: (String) -> Unit) -> Unit
+) {
+    var password by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.title_delete_account_confirm)) },
+        text = {
+            Column {
+                Text(stringResource(R.string.body_delete_account_confirm), style = MaterialTheme.typography.bodySmall)
+                Spacer(Modifier.height(8.dp))
+                PasswordField(
+                    value = password,
+                    onValueChange = { password = it; error = null },
+                    label = stringResource(R.string.parent_password_label),
+                    keyboardType = KeyboardType.Password
+                )
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(password) { message -> error = message } },
+                enabled = !loading && password.isNotBlank(),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+            ) { Text(stringResource(R.string.action_delete_account)) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
     )

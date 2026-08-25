@@ -270,6 +270,18 @@ object PactioApi {
         return json.toBackupResult()
     }
 
+    /**
+     * Hapus SELURUH akun keluarga (orang tua + semua anak, tugas, chat, log aktivitas) secara
+     * permanen - hanya bisa dipanggil orang tua, dan server minta konfirmasi ulang kata sandi
+     * (lihat catatan lengkap di server.js). Setelah ini berhasil, token sesi ini sendiri sudah
+     * tidak valid lagi - pemanggil (AppViewModel) harus langsung logout lokal, jangan coba
+     * panggil endpoint lain dengan token yang sama.
+     */
+    suspend fun deleteAccount(token: String, password: String) {
+        val body = JSONObject().put("password", password)
+        request("DELETE", "/account", token = token, body = body)
+    }
+
     private suspend fun request(method: String, path: String, token: String?, body: JSONObject?): JSONObject =
         withContext(Dispatchers.IO) {
             val connection = try {

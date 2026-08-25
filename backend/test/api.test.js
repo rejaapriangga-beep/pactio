@@ -52,3 +52,26 @@ test("chat grup keluarga (thread \"family\") tidak bocor ke keluarga lain", asyn
   // Kontrak API klien tidak berubah - childId yang dikembalikan tetap sentinel "family".
   assert.equal(seenByA.body.messages[0].childId, "family");
 });
+
+test("hapus akun menolak kata sandi salah, lalu menghapus seluruh data keluarga kalau benar", async () => {
+  const suffix = Date.now();
+  const registered = await request("/auth/register-parent", { method: "POST", body: JSON.stringify({ familyName: "Keluarga Hapus", name: "Ibu", email: `hapus${suffix}@contoh.id`, password: "rahasia-aman" }) });
+  const parentAuth = { Authorization: `Bearer ${registered.body.token}` };
+  const child = await request("/family/children", { method: "POST", headers: parentAuth, body: JSON.stringify({ name: "Budi", pin: "1234" }) });
+  await request("/tasks", { method: "POST", headers: parentAuth, body: JSON.stringify({ childId: child.body.child.id, title: "Belajar", rewardMinutes: 20 }) });
+  await request("/chat/family/messages", { method: "POST", headers: parentAuth, body: JSON.stringify({ type: "text", text: "Halo keluarga" }) });
+
+  const wrongPassword = await request("/account", { method: "DELETE", headers: parentAuth, body: JSON.stringify({ password: "salah-total" }) });
+  assert.equal(wrongPassword.status, 403);
+
+  const deleted = await request("/account", { method: "DELETE", headers: parentAuth, body: JSON.stringify({ password: "rahasia-aman" }) });
+  assert.equal(deleted.status, 200);
+
+  // Token orang tua yang barusan dipakai untuk hapus akun sendiri langsung tidak berlaku lagi.
+  const afterDelete = await request("/family", { headers: parentAuth });
+  assert.equal(afterDelete.status, 401);
+
+  // Login anak dengan family code lama juga sudah tidak berlaku (keluarganya sudah tidak ada).
+  const childLoginAfter = await request("/auth/login-child", { method: "POST", body: JSON.stringify({ familyCode: child.body.familyCode, pin: "1234" }) });
+  assert.equal(childLoginAfter.status, 401);
+});

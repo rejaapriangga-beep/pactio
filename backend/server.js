@@ -821,6 +821,61 @@ async function route(req, res) {
     return send(res, 200, { family: { id: family.id, name: family.name, code: user.role === "parent" ? family.code : undefined }, children });
   }
 
+  // Hapus akun (self-service dari menu Pengaturan) - HANYA orang tua yang bisa memicu, dan
+  // menghapus SELURUH keluarga (bukan cuma akun orang tua ini sendiri): semua profil anak,
+  // tugas & bukti file, riwayat chat & foto relay, log aktivitas, dan sesi login siapa pun di
+  // keluarga ini. Ini tindakan permanen & tidak bisa dibatalkan - wajib konfirmasi ulang kata
+  // sandi orang tua yang sedang login (bukan cuma andalkan token sesi yang mungkin dicuri/masih
+  // tersimpan di HP orang lain), sama pola kehati-hatiannya dengan
+  // /children/verify-parent-password di atas. Kalau orang tua ini masuk lewat Google (tidak
+  // pernah set kata sandi), tolak dengan pesan jelas - bukan diam-diam gagal.
+  //
+  // Sengaja balas 403 (bukan 401) untuk kata sandi salah - token sesi orang tua ini SENDIRI
+  // tetap valid, cuma konfirmasi kata sandinya yang ditolak. Kalau dijawab 401, klien Android
+  // akan menganggap sesi saat ini yang kedaluwarsa dan bisa memicu logout paksa - keliru, sama
+  // alasannya dengan /children/verify-parent-password.
+  if (req.method === "DELETE" && pathname === "/account") {
+    const parent = auth(req, res, ["parent"]); if (!parent) return;
+    const body = await bodyOf(req);
+    const password = requireText(body.password, "Kata sandi");
+    if (!parent.passwordHash) {
+      return send(res, 400, { error: "Akun ini masuk lewat Google dan belum pernah mengatur kata sandi, jadi tidak bisa konfirmasi lewat sini." });
+    }
+    if (!verify(password, parent.passwordHash)) return send(res, 403, { error: "Kata sandi salah." });
+
+    const familyId = parent.familyId;
+    const members = db.users.filter((item) => item.familyId === familyId);
+    const memberIds = new Set(members.map((item) => item.id));
+    const childIds = members.filter((item) => item.role === "child").map((item) => item.id);
+    const threadKeys = new Set([`${FAMILY_THREAD_KEY}:${familyId}`, ...childIds]);
+
+    for (const task of db.tasks.filter((item) => memberIds.has(item.childId))) {
+      deleteEvidenceFiles(task);
+    }
+    db.tasks = db.tasks.filter((item) => !memberIds.has(item.childId));
+
+    for (const message of db.chatMessages.filter((item) => threadKeys.has(item.childId))) {
+      if (message.type === "photo" && message.photoAvailable) {
+        const ext = EVIDENCE_MIME_EXT[message.photoMime];
+        const filePath = ext && chatPhotoPath(message.id, ext);
+        if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      }
+    }
+    db.chatMessages = db.chatMessages.filter((item) => !threadKeys.has(item.childId));
+
+    for (const memberId of memberIds) {
+      delete db.chatReadState[memberId];
+      for (const [token, record] of sessions) { if (record.userId === memberId) sessions.delete(token); }
+    }
+    db.sessions = db.sessions.filter((record) => !memberIds.has(record.userId));
+
+    db.auditLog = db.auditLog.filter((item) => item.familyId !== familyId);
+    db.users = db.users.filter((item) => item.familyId !== familyId);
+    db.families = db.families.filter((item) => item.id !== familyId);
+    save();
+    return send(res, 200, { ok: true });
+  }
+
   // Log aktivitas - HANYA orang tua yang bisa membaca (lihat komentar di logActivity()).
   // Terbaru dulu, dibatasi 100 supaya ringan (riwayat penuh tetap tersimpan di data.json
   // sampai AUDIT_LOG_MAX_PER_FAMILY).

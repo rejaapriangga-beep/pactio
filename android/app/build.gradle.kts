@@ -33,12 +33,10 @@ android {
         applicationId = "id.my.timecraft"
         minSdk = 26
         targetSdk = 36
-        // Naik dari 1 -> 2 -> 5 -> sekarang 6 - build 5 sudah kepakai di draft Closed testing
-        // sebelumnya, dan build ini menyertakan perbaikan bug keamanan chat lintas-keluarga +
-        // label "Perangkat <nama anak>" yang belum ada di build 5, jadi perlu versionCode baru
-        // untuk bisa upload sebagai file pengganti (lihat catatan versionCode di atas soal
-        // penguncian global Play Console).
-        versionCode = 6
+        // Naik dari 1 -> 2 -> 5 -> 6 -> sekarang 7 - build ini menambah fitur "Hapus Akun"
+        // self-service di Pengaturan (dipakai untuk menjawab pertanyaan "Delete account URL" /
+        // penghapusan data tanpa hapus akun di form Data safety Play Console).
+        versionCode = 7
         versionName = "0.1.0"
     }
 
