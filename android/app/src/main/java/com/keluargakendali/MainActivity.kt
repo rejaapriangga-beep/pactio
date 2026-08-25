@@ -1,5 +1,6 @@
 package com.keluargakendali
 
+import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -8,6 +9,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -31,10 +35,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.keluargakendali.data.LocaleHelper
+import com.keluargakendali.data.SettingsStore
 import com.keluargakendali.ui.AppViewModel
 import com.keluargakendali.ui.AuthScreen
+import com.keluargakendali.ui.BackupIconButton
 import com.keluargakendali.ui.ChildScreen
 import com.keluargakendali.ui.ChildSettingsDialog
 import com.keluargakendali.ui.ParentScreen
@@ -47,6 +56,14 @@ import kotlinx.coroutines.delay
 private const val AUTO_REFRESH_MS = 8_000L
 
 class MainActivity : ComponentActivity() {
+    // Override locale SEBELUM Activity dibuat, supaya semua string resource (termasuk yang
+    // dipakai layar landing) langsung terbit dalam bahasa yang dipilih pengguna - lihat
+    // LocaleHelper. Kalau ini dilewatkan, resource yang sudah kadung dibaca sebelum override
+    // tidak akan ikut berganti sampai Activity di-recreate ulang.
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(LocaleHelper.wrap(newBase))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent { PactioApp() }
@@ -59,6 +76,21 @@ private fun PactioApp() {
     val viewModel: AppViewModel = viewModel()
     val state by viewModel.state.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
+
+    // Mode gelap: cukup ganti state lokal, PactioTheme langsung ikut re-render - TIDAK perlu
+    // recreate Activity (beda dengan ganti bahasa di bawah, yang harus baca ulang semua
+    // string resource). Disimpan ke SettingsStore supaya pilihannya diingat lain kali dibuka.
+    var darkMode by remember { mutableStateOf(SettingsStore.isDarkMode(context)) }
+
+    // Ganti bahasa BUTUH recreate Activity - attachBaseContext (lihat MainActivity) cuma
+    // dibaca sekali saat Activity dibuat, jadi satu-satunya cara semua string resource yang
+    // sudah kadung "ke-resolve" ikut berganti bahasa adalah dengan membuat ulang Activity-nya.
+    fun toggleLanguage() {
+        val next = if (SettingsStore.getLanguage(context) == "id") "en" else "id"
+        SettingsStore.setLanguage(context, next)
+        (context as? android.app.Activity)?.recreate()
+    }
 
     // Notifikasi sukses (bukan cuma error) untuk aksi seperti buat tugas, approve, dsb.
     LaunchedEffect(state.infoMessage) {
@@ -90,7 +122,7 @@ private fun PactioApp() {
         }
     }
 
-    PactioTheme {
+    PactioTheme(darkTheme = darkMode) {
         Scaffold(
             snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
@@ -100,6 +132,25 @@ private fun PactioApp() {
                     TopAppBar(
                         title = { Text("TimeCraft") },
                         actions = {
+                            // Akses cepat gaya "toolbar ikon" (bahasa, mode gelap, backup) - dipasang
+                            // di TopAppBar dashboard, bukan ditumpuk di dalam Pengaturan, terinspirasi
+                            // pola aplikasi lain (mis. DompetDigitalKu) yang menaruh toggle tema di
+                            // header. Backup hanya relevan untuk orang tua (butuh token akses penuh).
+                            IconButton(onClick = { toggleLanguage() }) {
+                                Icon(Icons.Default.Language, contentDescription = "Ganti bahasa / Switch language")
+                            }
+                            IconButton(onClick = {
+                                darkMode = !darkMode
+                                SettingsStore.setDarkMode(context, darkMode)
+                            }) {
+                                Icon(
+                                    if (darkMode) Icons.Default.LightMode else Icons.Default.DarkMode,
+                                    contentDescription = stringResource(R.string.cd_toggle_dark_mode)
+                                )
+                            }
+                            if (state.currentUser?.role == "parent" && state.token != null) {
+                                BackupIconButton(token = state.token!!, familyName = state.family?.name)
+                            }
                             // Pengaturan dipindah ke sini (bukan tab lagi - lihat ParentScreen/ChildScreen)
                             // supaya tab utama tetap muat satu baris tanpa digulir. Sengaja di sebelah
                             // kiri "Keluar", bukan tombol refresh manual - data sudah disegarkan otomatis
@@ -111,11 +162,11 @@ private fun PactioApp() {
                                 // berefek untuk akun anak (dialognya beda, lihat ChildSettingsDialog).
                                 if (state.currentUser?.role == "parent") viewModel.loadActivityLog()
                             }) {
-                                Icon(Icons.Default.Settings, contentDescription = "Pengaturan")
+                                Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.app_settings))
                             }
                             TextButton(onClick = {
                                 if (state.currentUser?.role == "child") showChildLogoutDialog = true else viewModel.logout()
-                            }) { Text("Keluar") }
+                            }) { Text(stringResource(R.string.action_logout)) }
                         }
                     )
                 }
@@ -196,17 +247,17 @@ private fun ChildLogoutDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Kata sandi orang tua") },
+        title = { Text(stringResource(R.string.parent_password_label)) },
         text = {
             Column {
                 Text(
-                    "Minta orang tua memasukkan kata sandi akunnya untuk keluar dari HP ini.",
+                    stringResource(R.string.parent_password_dialog_body),
                     style = MaterialTheme.typography.bodySmall
                 )
                 PasswordField(
                     value = password,
                     onValueChange = { password = it; error = null },
-                    label = "Kata sandi orang tua",
+                    label = stringResource(R.string.parent_password_label),
                     keyboardType = KeyboardType.Password
                 )
                 error?.let {
@@ -218,8 +269,8 @@ private fun ChildLogoutDialog(
             Button(
                 onClick = { onConfirm(password) { message -> error = message } },
                 enabled = !loading && password.isNotBlank()
-            ) { Text("Keluar") }
+            ) { Text(stringResource(R.string.action_logout)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Batal") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
     )
 }

@@ -33,6 +33,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Checklist
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
@@ -95,7 +96,7 @@ import com.keluargakendali.data.TaskDto
 import com.keluargakendali.data.UserDto
 import com.keluargakendali.data.activityActionLabel
 import com.keluargakendali.data.statusLabel
-import com.keluargakendali.ui.theme.PactioSwitchTrackOff
+import com.keluargakendali.ui.theme.pactioExtraColors
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -309,9 +310,41 @@ fun ParentSettingsDialog(
  * Storage Access Framework (bukan folder tersembunyi aplikasi) - lihat catatan lengkap enkripsi
  * di PactioApi.createBackup/server.js. Alurnya: password dulu -> panggil API -> baru buka
  * pemilih lokasi simpan (CreateDocument) begitu byte-nya sudah siap ditulis.
+ *
+ * State & alurnya dipusatkan di BackupFlow supaya bisa dipicu dari DUA tempat dengan tampilan
+ * beda: bagian lengkap di dalam dialog Pengaturan (BackupSection) DAN ikon cepat langsung di
+ * TopAppBar dashboard (BackupIconButton, gaya "akses cepat" seperti aplikasi DompetDigitalKu).
  */
 @Composable
 private fun BackupSection(token: String, familyName: String?) {
+    BackupFlow(token = token, familyName = familyName) { onClick, loading ->
+        Column {
+            Text("Cadangan Data", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            Text(
+                "Unduh salinan data keluarga (profil anak, tugas, riwayat chat) sebagai berkas terenkripsi ke penyimpanan HP kamu. Kata sandinya kamu tentukan sendiri - server TIDAK menyimpannya.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(onClick = onClick, modifier = Modifier.fillMaxWidth(), enabled = !loading) {
+                Text("Unduh Backup Terenkripsi")
+            }
+        }
+    }
+}
+
+/** Akses cepat backup langsung dari TopAppBar - lihat catatan BackupSection di atas. */
+@Composable
+fun BackupIconButton(token: String, familyName: String?) {
+    BackupFlow(token = token, familyName = familyName) { onClick, loading ->
+        IconButton(onClick = onClick, enabled = !loading) {
+            Icon(Icons.Default.CloudDownload, contentDescription = "Unduh Backup Terenkripsi")
+        }
+    }
+}
+
+@Composable
+private fun BackupFlow(token: String, familyName: String?, trigger: @Composable (onClick: () -> Unit, loading: Boolean) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var showPasswordDialog by remember { mutableStateOf(false) }
@@ -331,24 +364,13 @@ private fun BackupSection(token: String, familyName: String?) {
 
     LaunchedEffect(pendingBackupBytes) {
         if (pendingBackupBytes != null) {
-            val safeFamilyName = (familyName ?: "pactio").lowercase().replace(Regex("[^a-z0-9]+"), "-")
+            val safeFamilyName = (familyName ?: "timecraft").lowercase().replace(Regex("[^a-z0-9]+"), "-")
             val dateStr = java.time.LocalDate.now().toString()
-            createDocumentLauncher.launch("pactio-backup-$safeFamilyName-$dateStr.json")
+            createDocumentLauncher.launch("timecraft-backup-$safeFamilyName-$dateStr.json")
         }
     }
 
-    Column {
-        Text("Cadangan Data", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-        Text(
-            "Unduh salinan data keluarga (profil anak, tugas, riwayat chat) sebagai berkas terenkripsi ke penyimpanan HP kamu. Kata sandinya kamu tentukan sendiri - server TIDAK menyimpannya.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(Modifier.height(8.dp))
-        OutlinedButton(onClick = { showPasswordDialog = true }, modifier = Modifier.fillMaxWidth(), enabled = !backupLoading) {
-            Text("Unduh Backup Terenkripsi")
-        }
-    }
+    trigger({ showPasswordDialog = true }, backupLoading)
 
     if (showPasswordDialog) {
         BackupPasswordDialog(
@@ -971,9 +993,9 @@ private fun ParentLockTab(
                                     checkedTrackColor = MaterialTheme.colorScheme.error,
                                     checkedThumbColor = MaterialTheme.colorScheme.onError,
                                     // Track "off" bawaan (outline pucat, sama dengan garis tepi kartu)
-                                    // nyaris tidak kelihatan di atas latar krem - lihat PactioSwitchTrackOff.
-                                    uncheckedTrackColor = PactioSwitchTrackOff,
-                                    uncheckedBorderColor = PactioSwitchTrackOff,
+                                    // nyaris tidak kelihatan di atas latar - lihat pactioExtraColors.switchTrackOff.
+                                    uncheckedTrackColor = MaterialTheme.pactioExtraColors.switchTrackOff,
+                                    uncheckedBorderColor = MaterialTheme.pactioExtraColors.switchTrackOff,
                                     uncheckedThumbColor = MaterialTheme.colorScheme.surface
                                 )
                             )

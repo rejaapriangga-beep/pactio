@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Bahasa Indonesia = resource DEFAULT (tanpa akhiran -xx), sesuai bahasa asli aplikasi ini.
+    Terjemahan Inggris ada di values-en/strings.xml. Baru mencakup layar login/landing + TopAppBar
+    dashboard (lihat AuthScreen.kt, MainActivity.kt) - layar lain (Tugas, Chat, Kunci Perangkat,
+    dialog Pengaturan) masih string literal langsung di Kotlin, menyusul di iterasi berikutnya.
+-->
+<resources>
+    <string name="app_settings">Pengaturan</string>
+    <string name="action_logout">Keluar</string>
+    <string name="action_cancel">Batal</string>
+    <string name="parent_password_label">Kata sandi orang tua</string>
+    <string name="parent_password_dialog_body">Minta orang tua memasukkan kata sandi akunnya untuk keluar dari HP ini.</string>
+    <string name="cd_toggle_dark_mode">Ganti mode gelap/terang</string>
+
+    <string name="greeting_headline">Halo!\nSiap kerjakan tugas hari ini?</string>
+    <string name="child_login_subtitle">Masuk pakai kode keluarga dan PIN kamu.</string>
+    <string name="label_family_code">Kode Keluarga</string>
+    <string name="label_pin">PIN</string>
+    <string name="action_child_login">Masuk &amp; Lihat Tugas</string>
+    <string name="link_parent_access">Orang tua? Masuk atau daftar di sini →</string>
+    <string name="title_parent_access">Akses Orang Tua</string>
+    <string name="subtitle_parent_access">Kelola tugas dan pantau progres anak.</string>
+    <string name="option_login_parent_title">Masuk sebagai Orang Tua</string>
+    <string name="option_login_parent_subtitle">Sudah punya akun keluarga</string>
+    <string name="option_register_title">Daftar Keluarga Baru</string>
+    <string name="option_register_subtitle">Buat akun keluarga pertama kamu</string>
+    <string name="label_family_name">Nama keluarga</string>
+    <string name="label_parent_name">Nama orang tua</string>
+    <string name="label_email">Email</string>
+    <string name="label_password_min8">Kata sandi (minimal 8 karakter)</string>
+    <string name="action_register_family">Daftarkan Keluarga</string>
+    <string name="label_password">Kata sandi</string>
+    <string name="action_login">Masuk</string>
+</resources>

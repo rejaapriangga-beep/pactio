@@ -42,3 +42,28 @@ val PactioRedSoft = Color(0xFFFBE4E1)
  * dengan warna track "off" di web/app.css (.switch-slider).
  */
 val PactioSwitchTrackOff = Color(0xFFD9C6B2)
+
+// --- Palet mode gelap ---
+// Hue aksen (koral/emas/hijau/merah) dipertahankan sama supaya tetap terasa "TimeCraft", hanya
+// dinaikkan sedikit terangnya (lebih pucat) supaya kontras cukup di atas latar gelap - warna
+// solid yang sama seperti mode terang akan terlihat terlalu redup/kusam di latar gelap.
+val PactioBackgroundDark = Color(0xFF17130F)
+val PactioSurfaceDark = Color(0xFF231D18)
+val PactioBorderDark = Color(0xFF3D342C)
+val PactioTextPrimaryDark = Color(0xFFF3ECE6)
+val PactioTextMutedDark = Color(0xFFB8AA9D)
+
+val PactioCoralOnDark = Color(0xFFFF9269)
+val PactioCoralSoftDark = Color(0xFF4A2B1E)
+val PactioCoralDarkOnDark = Color(0xFFFFD9C7)
+
+val PactioGoldOnDark = Color(0xFFF0C374)
+val PactioGoldSoftDark = Color(0xFF4A3A16)
+
+val PactioGreenOnDark = Color(0xFF7FCB9C)
+val PactioGreenSoftDark = Color(0xFF1E4030)
+
+val PactioRedOnDark = Color(0xFFF0897C)
+val PactioRedSoftDark = Color(0xFF4A251F)
+
+val PactioSwitchTrackOffDark = Color(0xFF574A3D)

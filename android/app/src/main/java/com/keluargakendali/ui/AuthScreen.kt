@@ -40,10 +40,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.keluargakendali.R
 
 /** Sub-langkah alur masuk orang tua — hanya muncul lewat link kecil di layar landing anak. */
 private enum class ParentStep { NONE, MENU, LOGIN, REGISTER }
@@ -111,10 +113,10 @@ private fun ChildLandingScreen(
         }
 
         Spacer(Modifier.height(26.dp))
-        Text("Halo!\nSiap kerjakan tugas hari ini?", style = MaterialTheme.typography.headlineSmall)
+        Text(stringResource(R.string.greeting_headline), style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(8.dp))
         Text(
-            "Masuk pakai kode keluarga dan PIN kamu.",
+            stringResource(R.string.child_login_subtitle),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -135,7 +137,7 @@ private fun ChildLandingScreen(
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                Text("Kode Keluarga", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.label_family_code), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 OutlinedTextField(
                     value = familyCode,
                     onValueChange = { familyCode = it.uppercase() },
@@ -145,8 +147,8 @@ private fun ChildLandingScreen(
             }
 
             Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                Text("PIN", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                PasswordField(pin, { pin = it }, "PIN", KeyboardType.NumberPassword)
+                Text(stringResource(R.string.label_pin), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                PasswordField(pin, { pin = it }, stringResource(R.string.label_pin), KeyboardType.NumberPassword)
             }
 
             Button(
@@ -154,13 +156,13 @@ private fun ChildLandingScreen(
                 enabled = !state.loading && familyCode.isNotBlank() && pin.isNotBlank(),
                 shape = RoundedCornerShape(14.dp),
                 modifier = Modifier.fillMaxWidth().height(52.dp)
-            ) { Text("Masuk & Lihat Tugas", style = MaterialTheme.typography.labelLarge) }
+            ) { Text(stringResource(R.string.action_child_login), style = MaterialTheme.typography.labelLarge) }
         }
 
         Spacer(Modifier.weight(1f))
 
         Text(
-            "Orang tua? Masuk atau daftar di sini →",
+            stringResource(R.string.link_parent_access),
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.primary,
             textAlign = TextAlign.Center,
@@ -176,10 +178,10 @@ private fun ChildLandingScreen(
 private fun ParentMenuSheet(onSelectLogin: () -> Unit, onSelectRegister: () -> Unit) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
         Column {
-            Text("Akses Orang Tua", style = MaterialTheme.typography.titleLarge)
+            Text(stringResource(R.string.title_parent_access), style = MaterialTheme.typography.titleLarge)
             Spacer(Modifier.height(4.dp))
             Text(
-                "Kelola tugas dan pantau progres anak.",
+                stringResource(R.string.subtitle_parent_access),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -189,16 +191,16 @@ private fun ParentMenuSheet(onSelectLogin: () -> Unit, onSelectRegister: () -> U
             icon = Icons.Default.Key,
             iconContainer = MaterialTheme.colorScheme.primaryContainer,
             iconTint = MaterialTheme.colorScheme.onPrimaryContainer,
-            title = "Masuk sebagai Orang Tua",
-            subtitle = "Sudah punya akun keluarga",
+            title = stringResource(R.string.option_login_parent_title),
+            subtitle = stringResource(R.string.option_login_parent_subtitle),
             onClick = onSelectLogin
         )
         ParentMenuOption(
             icon = Icons.Default.PersonAdd,
             iconContainer = MaterialTheme.colorScheme.tertiaryContainer,
             iconTint = MaterialTheme.colorScheme.onTertiaryContainer,
-            title = "Daftar Keluarga Baru",
-            subtitle = "Buat akun keluarga pertama kamu",
+            title = stringResource(R.string.option_register_title),
+            subtitle = stringResource(R.string.option_register_subtitle),
             onClick = onSelectRegister
         )
     }
@@ -251,22 +253,22 @@ private fun RegisterParentForm(loading: Boolean, onSubmit: (String, String, Stri
     var password by remember { mutableStateOf("") }
 
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Text("Daftar Keluarga Baru", style = MaterialTheme.typography.titleLarge)
-        OutlinedTextField(familyName, { familyName = it }, label = { Text("Nama keluarga") }, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(name, { name = it }, label = { Text("Nama orang tua") }, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth())
+        Text(stringResource(R.string.option_register_title), style = MaterialTheme.typography.titleLarge)
+        OutlinedTextField(familyName, { familyName = it }, label = { Text(stringResource(R.string.label_family_name)) }, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(name, { name = it }, label = { Text(stringResource(R.string.label_parent_name)) }, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth())
         OutlinedTextField(
-            email, { email = it }, label = { Text("Email") },
+            email, { email = it }, label = { Text(stringResource(R.string.label_email)) },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
             shape = RoundedCornerShape(14.dp),
             modifier = Modifier.fillMaxWidth()
         )
-        PasswordField(password, { password = it }, "Kata sandi (minimal 8 karakter)", KeyboardType.Password)
+        PasswordField(password, { password = it }, stringResource(R.string.label_password_min8), KeyboardType.Password)
         Button(
             onClick = { onSubmit(familyName.trim(), name.trim(), email.trim(), password) },
             enabled = !loading && familyName.isNotBlank() && name.isNotBlank() && email.isNotBlank() && password.length >= 8,
             shape = RoundedCornerShape(14.dp),
             modifier = Modifier.fillMaxWidth().height(52.dp)
-        ) { Text("Daftarkan Keluarga", style = MaterialTheme.typography.labelLarge) }
+        ) { Text(stringResource(R.string.action_register_family), style = MaterialTheme.typography.labelLarge) }
     }
 }
 
@@ -276,19 +278,19 @@ private fun LoginParentForm(loading: Boolean, onSubmit: (String, String) -> Unit
     var password by remember { mutableStateOf("") }
 
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Text("Masuk sebagai Orang Tua", style = MaterialTheme.typography.titleLarge)
+        Text(stringResource(R.string.option_login_parent_title), style = MaterialTheme.typography.titleLarge)
         OutlinedTextField(
-            email, { email = it }, label = { Text("Email") },
+            email, { email = it }, label = { Text(stringResource(R.string.label_email)) },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
             shape = RoundedCornerShape(14.dp),
             modifier = Modifier.fillMaxWidth()
         )
-        PasswordField(password, { password = it }, "Kata sandi", KeyboardType.Password)
+        PasswordField(password, { password = it }, stringResource(R.string.label_password), KeyboardType.Password)
         Button(
             onClick = { onSubmit(email.trim(), password) },
             enabled = !loading && email.isNotBlank() && password.isNotBlank(),
             shape = RoundedCornerShape(14.dp),
             modifier = Modifier.fillMaxWidth().height(52.dp)
-        ) { Text("Masuk", style = MaterialTheme.typography.labelLarge) }
+        ) { Text(stringResource(R.string.action_login), style = MaterialTheme.typography.labelLarge) }
     }
 }
