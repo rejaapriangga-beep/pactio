@@ -33,10 +33,10 @@ android {
         applicationId = "id.my.timecraft"
         minSdk = 26
         targetSdk = 36
-        // Naik dari 1 -> 2 -> 5 -> 6 -> sekarang 7 - build ini menambah fitur "Hapus Akun"
-        // self-service di Pengaturan (dipakai untuk menjawab pertanyaan "Delete account URL" /
-        // penghapusan data tanpa hapus akun di form Data safety Play Console).
-        versionCode = 7
+        // Naik dari 1 -> 2 -> 5 -> 6 -> 7 -> sekarang 8 - build ini menambah fitur proteksi
+        // anti-uninstall (Device Admin, opsional, diaktifkan sendiri oleh orang tua lewat
+        // Pengaturan - lihat UninstallProtectionAdminReceiver.kt).
+        versionCode = 8
         versionName = "0.1.0"
     }
 

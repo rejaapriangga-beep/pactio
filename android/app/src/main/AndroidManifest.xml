@@ -6,10 +6,12 @@
     <uses-permission android:name="android.permission.INTERNET" />
 
     <!--
-        Izin khusus untuk fitur Kontrol Perangkat (lihat DeviceLockService). SYSTEM_ALERT_WINDOW
-        TIDAK memicu dialog izin otomatis - wajib diberikan MANUAL oleh pengguna lewat halaman
-        Pengaturan sistem (transparan, terlihat di "Akses khusus", bisa dicabut kapan saja).
-        Bukan accessibility service, bukan root, bukan device admin/owner - sesuai batasan PRD.
+        Izin khusus untuk fitur Kontrol Perangkat/kunci layar (lihat DeviceLockService).
+        SYSTEM_ALERT_WINDOW TIDAK memicu dialog izin otomatis - wajib diberikan MANUAL oleh
+        pengguna lewat halaman Pengaturan sistem (transparan, terlihat di "Akses khusus", bisa
+        dicabut kapan saja). Bukan accessibility service, bukan root - sesuai batasan PRD.
+        (Device admin DIPAKAI di bawah, tapi HANYA untuk proteksi anti-uninstall - fitur
+        terpisah, lihat UninstallProtectionAdminReceiver - bukan untuk kunci layar ini.)
     -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -42,6 +44,26 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Memantau aplikasi yang sedang dibuka anak untuk menegakkan kunci perangkat yang diaktifkan orang tua." />
         </service>
+
+        <!--
+            Device admin KHUSUS proteksi anti-uninstall (lihat komentar lengkap di
+            UninstallProtectionAdminReceiver.kt) - orang tua mengaktifkannya sendiri lewat
+            dialog sistem resmi Android (ACTION_ADD_DEVICE_ADMIN) di menu Pengaturan aplikasi,
+            bukan diam-diam. exported="true" WAJIB untuk device-admin receiver (sistem Android
+            yang memanggilnya), tapi dilindungi permission BIND_DEVICE_ADMIN bawaan platform -
+            hanya sistem Android sendiri yang bisa mengikatnya, bukan aplikasi lain sembarangan.
+        -->
+        <receiver
+            android:name=".service.UninstallProtectionAdminReceiver"
+            android:exported="true"
+            android:permission="android.permission.BIND_DEVICE_ADMIN">
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/device_admin_receiver" />
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+            </intent-filter>
+        </receiver>
 
         <!--
             Dibutuhkan supaya orang tua bisa membuka berkas bukti PDF yang diunduh dari server

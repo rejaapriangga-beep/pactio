@@ -268,6 +268,11 @@ fun ParentSettingsDialog(
                 Spacer(Modifier.height(20.dp))
                 HorizontalDivider()
                 Spacer(Modifier.height(12.dp))
+                UninstallProtectionSection()
+
+                Spacer(Modifier.height(20.dp))
+                HorizontalDivider()
+                Spacer(Modifier.height(12.dp))
                 Text(
                     stringResource(R.string.heading_danger_zone),
                     style = MaterialTheme.typography.titleSmall,
@@ -323,6 +328,62 @@ fun ParentSettingsDialog(
                 ) { Text(stringResource(R.string.action_delete)) }
             },
             dismissButton = { TextButton(onClick = { childPendingDelete = null }) { Text(stringResource(R.string.action_cancel)) } }
+        )
+    }
+}
+
+/**
+ * Proteksi anti-uninstall lewat Device Admin resmi Android - lihat catatan lengkap di
+ * UninstallProtectionAdminReceiver.kt/AndroidManifest.xml kenapa ini AMAN sesuai batasan PRD
+ * (transparan, lewat API resmi, tetap bisa dicabut siapa pun yang punya akses Settings sistem -
+ * bukan mekanisme tersembunyi). Status dibaca ulang tiap kali dialog Pengaturan ini dibuka
+ * (remember di sini, bukan disimpan di AppViewModel) - device admin murni status sistem
+ * Android, bukan sesuatu yang perlu disinkronkan ke server.
+ */
+@Composable
+private fun UninstallProtectionSection() {
+    val context = LocalContext.current
+    val devicePolicyManager = remember {
+        context.getSystemService(Context.DEVICE_POLICY_SERVICE) as android.app.admin.DevicePolicyManager
+    }
+    val adminComponent = remember {
+        android.content.ComponentName(context, com.keluargakendali.service.UninstallProtectionAdminReceiver::class.java)
+    }
+    var isActive by remember { mutableStateOf(devicePolicyManager.isAdminActive(adminComponent)) }
+
+    val explanation = stringResource(R.string.desc_device_admin_explanation)
+    val activationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        isActive = devicePolicyManager.isAdminActive(adminComponent)
+    }
+
+    Text(stringResource(R.string.heading_uninstall_protection), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+    Text(
+        stringResource(R.string.desc_uninstall_protection),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    Spacer(Modifier.height(6.dp))
+    Text(
+        if (isActive) stringResource(R.string.status_uninstall_protection_active) else stringResource(R.string.status_uninstall_protection_inactive),
+        style = MaterialTheme.typography.bodySmall,
+        fontWeight = FontWeight.SemiBold,
+        color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    Spacer(Modifier.height(8.dp))
+    if (!isActive) {
+        Button(onClick = {
+            val intent = Intent(android.app.admin.DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
+                putExtra(android.app.admin.DevicePolicyManager.EXTRA_DEVICE_ADMIN, adminComponent)
+                putExtra(android.app.admin.DevicePolicyManager.EXTRA_ADD_EXPLANATION, explanation)
+            }
+            activationLauncher.launch(intent)
+        }) { Text(stringResource(R.string.action_enable_uninstall_protection)) }
+    } else {
+        Text(
+            stringResource(R.string.hint_disable_uninstall_protection),
+            style = MaterialTheme.typography.bodySmall,
+            fontStyle = FontStyle.Italic,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }

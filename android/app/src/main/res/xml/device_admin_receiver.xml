@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Sengaja TANPA satu pun uses-policies - TimeCraft tidak memakai kemampuan device admin
+    apa pun (tidak wipe data, tidak paksa kebijakan PIN layar, tidak nonaktifkan kamera, dst).
+    Satu-satunya alasan mendaftar sebagai device admin (lihat UninstallProtectionAdminReceiver)
+    adalah efek samping resmi bawaan Android: aplikasi tidak bisa di-uninstall langsung selama
+    admin ini aktif - anti-uninstall, bukan kontrol perangkat tersembunyi.
+-->
+<device-admin xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-policies />
+</device-admin>

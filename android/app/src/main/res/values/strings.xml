@@ -79,6 +79,14 @@
     <string name="title_delete_child_confirm">Hapus profil %1$s?</string>
     <string name="body_delete_child_confirm">Semua tugas, riwayat chat, dan foto bukti miliknya akan ikut terhapus, dan perangkat anak ini akan otomatis keluar. Tindakan ini tidak bisa dibatalkan.</string>
     <string name="action_delete">Hapus</string>
+    <string name="heading_uninstall_protection">Proteksi Anti-Uninstall</string>
+    <string name="desc_uninstall_protection">Setelah diaktifkan, aplikasi ini tidak bisa langsung dihapus dari HP - harus dinonaktifkan dulu lewat Pengaturan sistem &gt; Keamanan &gt; Aplikasi admin perangkat, bukan tombol "Uninstall" biasa. Tetap bisa dinonaktifkan kapan saja oleh siapa pun yang punya akses ke Pengaturan sistem.</string>
+    <string name="status_uninstall_protection_active">✓ Aktif</string>
+    <string name="status_uninstall_protection_inactive">Belum aktif</string>
+    <string name="action_enable_uninstall_protection">Aktifkan Proteksi Anti-Uninstall</string>
+    <string name="hint_disable_uninstall_protection">Untuk menonaktifkan: Pengaturan sistem HP &gt; Keamanan &gt; Aplikasi admin perangkat &gt; TimeCraft &gt; Nonaktifkan.</string>
+    <string name="desc_device_admin_explanation">TimeCraft memakai izin ini HANYA supaya aplikasi tidak bisa langsung dihapus dari HP anak - tidak untuk mengunci layar, menghapus data, atau kontrol perangkat lainnya.</string>
+    <string name="warning_device_admin_disable">Menonaktifkan ini akan mengizinkan TimeCraft dihapus langsung dari HP. Pastikan ini memang persetujuan orang tua.</string>
     <string name="heading_danger_zone">Zona Berbahaya</string>
     <string name="desc_delete_account">Menghapus akun ini akan menghapus SELURUH keluarga secara permanen: akun orang tua, semua profil anak, tugas, riwayat chat, dan log aktivitas. Tindakan ini tidak bisa dibatalkan.</string>
     <string name="action_delete_account">Hapus Akun</string>

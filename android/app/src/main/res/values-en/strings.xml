@@ -73,6 +73,14 @@
     <string name="title_delete_child_confirm">Delete %1$s\'s profile?</string>
     <string name="body_delete_child_confirm">All of their tasks, chat history, and evidence photos will be deleted too, and this child\'s device will be signed out automatically. This can\'t be undone.</string>
     <string name="action_delete">Delete</string>
+    <string name="heading_uninstall_protection">Uninstall Protection</string>
+    <string name="desc_uninstall_protection">Once enabled, this app can\'t be uninstalled directly from the phone - it must first be turned off via system Settings &gt; Security &gt; Device admin apps, not the regular "Uninstall" button. It can still be turned off any time by anyone with access to system Settings.</string>
+    <string name="status_uninstall_protection_active">✓ Active</string>
+    <string name="status_uninstall_protection_inactive">Not active</string>
+    <string name="action_enable_uninstall_protection">Enable Uninstall Protection</string>
+    <string name="hint_disable_uninstall_protection">To turn off: phone system Settings &gt; Security &gt; Device admin apps &gt; TimeCraft &gt; Deactivate.</string>
+    <string name="desc_device_admin_explanation">TimeCraft uses this permission ONLY so the app can\'t be uninstalled directly from your child\'s phone - not to lock the screen, erase data, or any other device control.</string>
+    <string name="warning_device_admin_disable">Turning this off will allow TimeCraft to be uninstalled directly from the phone. Make sure this is really a parent\'s decision.</string>
     <string name="heading_danger_zone">Danger Zone</string>
     <string name="desc_delete_account">Deleting this account permanently removes the ENTIRE family: the parent account, every child profile, tasks, chat history, and activity log. This can\'t be undone.</string>
     <string name="action_delete_account">Delete Account</string>
