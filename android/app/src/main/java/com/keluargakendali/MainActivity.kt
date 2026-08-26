@@ -240,6 +240,9 @@ private fun PactioApp() {
                     onDeleteChild = viewModel::deleteChild,
                     onResetPin = viewModel::resetChildPin,
                     onDeleteAccount = { password, onWrongPassword -> viewModel.deleteAccount(password, onWrongPassword) },
+                    onChangePassword = { currentPassword, newPassword, onSuccess, onError ->
+                        viewModel.changePassword(currentPassword, newPassword, onSuccess, onError)
+                    },
                     onDismiss = { showSettings = false }
                 )
                 "child" -> ChildSettingsDialog(state = state, onDismiss = { showSettings = false })

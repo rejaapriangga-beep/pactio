@@ -162,6 +162,35 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * Ubah kata sandi orang tua (dipanggil dari Pengaturan) - error (kata sandi saat ini salah,
+     * dst) tampil DI DALAM dialog lewat onError, sama pola dengan deleteAccount/
+     * confirmChildLogout di atas. ApiException.Unauthorized (401) tetap berarti sesi SAAT INI
+     * sendiri sudah tidak valid - langsung logout paksa. Kalau berhasil, sesi ini SENDIRI tetap
+     * hidup (server hanya mencabut sesi device lain) - cukup tampilkan info sukses & tutup
+     * dialog, tidak perlu logout/refresh apa pun.
+     */
+    fun changePassword(currentPassword: String, newPassword: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        val token = _state.value.token ?: return
+        viewModelScope.launch {
+            _state.update { it.copy(loading = true) }
+            try {
+                PactioApi.changePassword(token, currentPassword, newPassword)
+                _state.update { it.copy(loading = false, infoMessage = str(R.string.info_password_changed)) }
+                onSuccess()
+            } catch (error: ApiException.Unauthorized) {
+                tokenStore.clear()
+                _state.value = UiState(errorMessage = str(R.string.error_session_expired))
+            } catch (error: ApiException) {
+                onError(error.message ?: str(R.string.error_no_connection))
+                _state.update { it.copy(loading = false) }
+            } catch (error: Exception) {
+                onError(str(R.string.error_no_connection))
+                _state.update { it.copy(loading = false) }
+            }
+        }
+    }
+
     fun addChild(name: String, pin: String) = requireToken { token ->
         PactioApi.addChild(token, name, pin)
         loadFamily(token)

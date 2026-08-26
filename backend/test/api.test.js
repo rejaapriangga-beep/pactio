@@ -75,3 +75,33 @@ test("hapus akun menolak kata sandi salah, lalu menghapus seluruh data keluarga 
   const childLoginAfter = await request("/auth/login-child", { method: "POST", body: JSON.stringify({ familyCode: child.body.familyCode, pin: "1234" }) });
   assert.equal(childLoginAfter.status, 401);
 });
+
+test("ubah kata sandi: tolak kata sandi lama salah, cabut sesi device lain, sesi sendiri tetap hidup", async () => {
+  const suffix = Date.now();
+  const registered = await request("/auth/register-parent", { method: "POST", body: JSON.stringify({ familyName: "Keluarga Sandi", name: "Ayah", email: `sandi${suffix}@contoh.id`, password: "sandi-lama-aman" }) });
+  const authA = { Authorization: `Bearer ${registered.body.token}` };
+
+  // Simulasikan "device lain" - login ulang pakai kredensial yang sama menghasilkan token kedua.
+  const loginB = await request("/auth/login-parent", { method: "POST", body: JSON.stringify({ email: `sandi${suffix}@contoh.id`, password: "sandi-lama-aman" }) });
+  const authB = { Authorization: `Bearer ${loginB.body.token}` };
+
+  const wrongCurrent = await request("/account/change-password", { method: "POST", headers: authA, body: JSON.stringify({ currentPassword: "salah", newPassword: "sandi-baru-aman" }) });
+  assert.equal(wrongCurrent.status, 403);
+
+  const changed = await request("/account/change-password", { method: "POST", headers: authA, body: JSON.stringify({ currentPassword: "sandi-lama-aman", newPassword: "sandi-baru-aman" }) });
+  assert.equal(changed.status, 200);
+
+  // Sesi yang dipakai untuk ganti kata sandi ini SENDIRI tetap hidup.
+  const stillWorksA = await request("/family", { headers: authA });
+  assert.equal(stillWorksA.status, 200);
+
+  // Sesi device LAIN (token lama, dari sebelum kata sandi diganti) langsung tercabut.
+  const revokedB = await request("/family", { headers: authB });
+  assert.equal(revokedB.status, 401);
+
+  // Login dengan kata sandi lama sudah tidak bisa, harus pakai yang baru.
+  const loginOldPassword = await request("/auth/login-parent", { method: "POST", body: JSON.stringify({ email: `sandi${suffix}@contoh.id`, password: "sandi-lama-aman" }) });
+  assert.equal(loginOldPassword.status, 401);
+  const loginNewPassword = await request("/auth/login-parent", { method: "POST", body: JSON.stringify({ email: `sandi${suffix}@contoh.id`, password: "sandi-baru-aman" }) });
+  assert.equal(loginNewPassword.status, 200);
+});

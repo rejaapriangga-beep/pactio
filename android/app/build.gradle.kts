@@ -33,10 +33,9 @@ android {
         applicationId = "id.my.timecraft"
         minSdk = 26
         targetSdk = 36
-        // Naik dari 1 -> 2 -> 5 -> 6 -> 7 -> sekarang 8 - build ini menambah fitur proteksi
-        // anti-uninstall (Device Admin, opsional, diaktifkan sendiri oleh orang tua lewat
-        // Pengaturan - lihat UninstallProtectionAdminReceiver.kt).
-        versionCode = 8
+        // Naik dari 1 -> 2 -> 5 -> 6 -> 7 -> 8 -> sekarang 9 - build ini menambah fitur "Ubah
+        // Kata Sandi" self-service di Pengaturan.
+        versionCode = 9
         versionName = "0.1.0"
     }
 

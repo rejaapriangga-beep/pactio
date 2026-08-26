@@ -202,11 +202,13 @@ fun ParentSettingsDialog(
     onDeleteChild: (childId: String) -> Unit,
     onResetPin: (childId: String, pin: String) -> Unit,
     onDeleteAccount: (password: String, onWrongPassword: (String) -> Unit) -> Unit,
+    onChangePassword: (currentPassword: String, newPassword: String, onSuccess: () -> Unit, onError: (String) -> Unit) -> Unit,
     onDismiss: () -> Unit
 ) {
     var childPendingDelete by remember { mutableStateOf<UserDto?>(null) }
     var childPendingResetPin by remember { mutableStateOf<UserDto?>(null) }
     var showDeleteAccountDialog by remember { mutableStateOf(false) }
+    var showChangePasswordDialog by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -215,6 +217,15 @@ fun ParentSettingsDialog(
             // Dialog ini sudah cukup panjang (profil anak + log aktivitas) - digulir supaya
             // tetap muat di layar kecil, konsisten dengan pola LazyColumn di layar lain.
             Column(Modifier.verticalScroll(rememberScrollState())) {
+                Text(stringResource(R.string.heading_account), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(onClick = { showChangePasswordDialog = true }) {
+                    Text(stringResource(R.string.action_change_password))
+                }
+
+                Spacer(Modifier.height(20.dp))
+                HorizontalDivider()
+                Spacer(Modifier.height(12.dp))
                 Text(stringResource(R.string.heading_child_profiles), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                 Text(
                     stringResource(R.string.desc_child_pin_encrypted),
@@ -299,6 +310,16 @@ fun ParentSettingsDialog(
             loading = loading,
             onDismiss = { showDeleteAccountDialog = false },
             onConfirm = { password, onWrongPassword -> onDeleteAccount(password, onWrongPassword) }
+        )
+    }
+
+    if (showChangePasswordDialog) {
+        ChangePasswordDialog(
+            loading = loading,
+            onDismiss = { showChangePasswordDialog = false },
+            onConfirm = { currentPassword, newPassword, onError ->
+                onChangePassword(currentPassword, newPassword, { showChangePasswordDialog = false }, onError)
+            }
         )
     }
 
@@ -523,6 +544,52 @@ private fun ResetPinDialog(childName: String, loading: Boolean, onDismiss: () ->
         },
         confirmButton = {
             Button(onClick = { onSubmit(pin) }, enabled = !loading && pin.length in 4..8) { Text(stringResource(R.string.action_save_new_pin)) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
+    )
+}
+
+/**
+ * Ubah kata sandi - minta kata sandi LAMA (konfirmasi identitas, lihat catatan di
+ * AppViewModel.changePassword/server.js) + kata sandi BARU (min 8 karakter, sama syaratnya
+ * dengan pendaftaran). Error (kata sandi lama salah, dst) tampil DI DALAM dialog ini lewat
+ * onError, sama pola dengan DeleteAccountDialog di bawah.
+ */
+@Composable
+private fun ChangePasswordDialog(
+    loading: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: (currentPassword: String, newPassword: String, onError: (String) -> Unit) -> Unit
+) {
+    var currentPassword by remember { mutableStateOf("") }
+    var newPassword by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.title_change_password)) },
+        text = {
+            Column {
+                PasswordField(
+                    value = currentPassword,
+                    onValueChange = { currentPassword = it; error = null },
+                    label = stringResource(R.string.label_current_password),
+                    keyboardType = KeyboardType.Password
+                )
+                PasswordField(
+                    value = newPassword,
+                    onValueChange = { newPassword = it; error = null },
+                    label = stringResource(R.string.label_new_password),
+                    keyboardType = KeyboardType.Password
+                )
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(currentPassword, newPassword) { message -> error = message } },
+                enabled = !loading && currentPassword.isNotBlank() && newPassword.length >= 8
+            ) { Text(stringResource(R.string.action_change_password)) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
     )

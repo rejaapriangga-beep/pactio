@@ -821,6 +821,38 @@ async function route(req, res) {
     return send(res, 200, { family: { id: family.id, name: family.name, code: user.role === "parent" ? family.code : undefined }, children });
   }
 
+  // Ubah kata sandi orang tua (self-service dari menu Pengaturan) - wajib konfirmasi kata
+  // sandi LAMA dulu (bukan cuma andalkan token sesi), sama pola kehati-hatiannya dengan
+  // /children/verify-parent-password & DELETE /account di bawah. Sengaja balas 403 (bukan 401)
+  // untuk kata sandi lama yang salah - alasannya sama seperti endpoint lain di atas: token sesi
+  // ini sendiri masih valid, jangan sampai klien Android salah anggap sesi kedaluwarsa.
+  //
+  // Sesi LAIN (device lain yang masih login dengan kata sandi lama) langsung dicabut begitu
+  // kata sandi berhasil diganti - kebiasaan keamanan standar saat kredensial berubah. Sesi yang
+  // dipakai request PERUBAHAN ini sendiri sengaja TETAP hidup, supaya orang tua tidak langsung
+  // ter-logout di tengah alur setelah baru saja mengganti kata sandinya.
+  if (req.method === "POST" && pathname === "/account/change-password") {
+    const authHeader = req.headers.authorization || "";
+    const currentToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+    const parent = auth(req, res, ["parent"]); if (!parent) return;
+    const body = await bodyOf(req);
+    const currentPassword = requireText(body.currentPassword, "Kata sandi saat ini");
+    const newPassword = requireText(body.newPassword, "Kata sandi baru", 8);
+    if (!parent.passwordHash) {
+      return send(res, 400, { error: "Akun ini masuk lewat Google dan belum pernah mengatur kata sandi, jadi tidak bisa diubah lewat sini." });
+    }
+    if (!verify(currentPassword, parent.passwordHash)) return send(res, 403, { error: "Kata sandi saat ini salah." });
+
+    parent.passwordHash = hash(newPassword);
+    for (const [token, record] of sessions) {
+      if (record.userId === parent.id && token !== currentToken) sessions.delete(token);
+    }
+    db.sessions = db.sessions.filter((record) => record.userId !== parent.id || record.token === currentToken);
+    logActivity(parent, "password_changed");
+    save();
+    return send(res, 200, { ok: true });
+  }
+
   // Hapus akun (self-service dari menu Pengaturan) - HANYA orang tua yang bisa memicu, dan
   // menghapus SELURUH keluarga (bukan cuma akun orang tua ini sendiri): semua profil anak,
   // tugas & bukti file, riwayat chat & foto relay, log aktivitas, dan sesi login siapa pun di

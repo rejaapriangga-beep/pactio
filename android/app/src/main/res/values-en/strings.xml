@@ -51,6 +51,7 @@
     <string name="activity_task_rejected">Rejected a task</string>
     <string name="activity_access_redeemed">Redeemed minutes for screen time</string>
     <string name="activity_backup_created">Downloaded an encrypted backup</string>
+    <string name="activity_password_changed">Changed password</string>
     <string name="role_parent_suffix">" (Parent) "</string>
     <string name="role_child_suffix">" (Child) "</string>
 
@@ -87,6 +88,12 @@
     <string name="title_delete_account_confirm">Permanently delete this account?</string>
     <string name="body_delete_account_confirm">All of this family\'s data (parent account, child profiles, tasks, evidence photos, and chat history) will be permanently deleted from the server and can\'t be recovered. Enter your password to confirm.</string>
     <string name="info_account_deleted">Your account and all family data have been permanently deleted.</string>
+    <string name="heading_account">Account</string>
+    <string name="action_change_password">Change Password</string>
+    <string name="title_change_password">Change Password</string>
+    <string name="label_current_password">Current password</string>
+    <string name="label_new_password">New password</string>
+    <string name="info_password_changed">Password changed successfully. Other signed-in devices have been signed out automatically.</string>
 
     <!-- ParentScreen.kt: Backup -->
     <string name="heading_backup_data">Backup Data</string>

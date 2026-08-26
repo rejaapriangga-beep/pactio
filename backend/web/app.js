@@ -1196,7 +1196,8 @@ const ACTIVITY_ACTION_LABEL = {
   task_approved: "Menyetujui tugas",
   task_rejected: "Menolak tugas",
   access_redeemed: "Menukar saldo menit jadi waktu akses",
-  backup_created: "Mengunduh backup terenkripsi"
+  backup_created: "Mengunduh backup terenkripsi",
+  password_changed: "Mengubah kata sandi"
 };
 
 function renderActivityLogCard() {

@@ -185,5 +185,6 @@ fun activityActionLabel(action: String): String = when (action) {
     "task_rejected" -> stringResource(R.string.activity_task_rejected)
     "access_redeemed" -> stringResource(R.string.activity_access_redeemed)
     "backup_created" -> stringResource(R.string.activity_backup_created)
+    "password_changed" -> stringResource(R.string.activity_password_changed)
     else -> action
 }

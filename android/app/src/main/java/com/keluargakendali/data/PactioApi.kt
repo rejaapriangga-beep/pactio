@@ -259,6 +259,17 @@ object PactioApi {
     }
 
     /**
+     * Ubah kata sandi orang tua (self-service dari Pengaturan) - server minta kata sandi LAMA
+     * untuk konfirmasi (lihat catatan lengkap di server.js). Sesi LAIN (device lain yang masih
+     * pakai kata sandi lama) otomatis dicabut server, tapi sesi/token yang dipakai untuk
+     * request ini SENDIRI tetap hidup - tidak perlu login ulang setelah berhasil.
+     */
+    suspend fun changePassword(token: String, currentPassword: String, newPassword: String) {
+        val body = JSONObject().put("currentPassword", currentPassword).put("newPassword", newPassword)
+        request("POST", "/account/change-password", token = token, body = body)
+    }
+
+    /**
      * Membuat backup terenkripsi (server yang mengenkripsi pakai `password` ini - lihat catatan
      * lengkap di server.js) dan mengembalikannya sebagai JSON mentah untuk disimpan apa adanya
      * ke penyimpanan yang dipilih orang tua lewat Storage Access Framework. `password` TIDAK

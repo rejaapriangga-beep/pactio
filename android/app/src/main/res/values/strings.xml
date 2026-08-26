@@ -57,6 +57,7 @@
     <string name="activity_task_rejected">Menolak tugas</string>
     <string name="activity_access_redeemed">Menukar saldo menit jadi waktu akses</string>
     <string name="activity_backup_created">Mengunduh backup terenkripsi</string>
+    <string name="activity_password_changed">Mengubah kata sandi</string>
     <string name="role_parent_suffix">" (Orang Tua) "</string>
     <string name="role_child_suffix">" (Anak) "</string>
 
@@ -93,6 +94,12 @@
     <string name="title_delete_account_confirm">Hapus akun secara permanen?</string>
     <string name="body_delete_account_confirm">Semua data keluarga ini (akun orang tua, profil anak, tugas, foto bukti, dan riwayat chat) akan dihapus permanen dari server dan tidak bisa dikembalikan. Masukkan kata sandi kamu untuk konfirmasi.</string>
     <string name="info_account_deleted">Akun dan semua data keluarga sudah dihapus permanen.</string>
+    <string name="heading_account">Akun</string>
+    <string name="action_change_password">Ubah Kata Sandi</string>
+    <string name="title_change_password">Ubah Kata Sandi</string>
+    <string name="label_current_password">Kata sandi saat ini</string>
+    <string name="label_new_password">Kata sandi baru</string>
+    <string name="info_password_changed">Kata sandi berhasil diubah. Perangkat lain yang masih login otomatis keluar.</string>
 
     <!-- ParentScreen.kt: Backup -->
     <string name="heading_backup_data">Cadangan Data</string>
