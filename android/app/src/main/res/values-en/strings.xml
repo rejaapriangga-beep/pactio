@@ -107,6 +107,43 @@
     <string name="tutorial_step_incomplete_tasks">Track each child\'s unfinished tasks in this card, right from the Dashboard.</string>
     <string name="tutorial_step_create_task">Tap this button to create a new task for a child.</string>
 
+    <!-- GuideDialog.kt: Usage Guide - full text reference, different from the coach-mark tour
+         above (which only highlights 4 Dashboard elements). Opened from Settings. -->
+    <string name="action_open_guide">Usage Guide</string>
+
+    <string name="guide_title_add_child">Add a Child Profile</string>
+    <string name="guide_steps_add_child">Open the \"Device Lock\" tab (the lock icon in the bottom menu).\nTap the \"+ Add Child\" button.\nEnter the child\'s name and a 4-8 digit PIN, then save.\nThe family code automatically appears on the Dashboard card - the child uses it to log in for the first time.</string>
+
+    <string name="guide_title_create_task">Create a New Task</string>
+    <string name="guide_steps_create_task">From the Dashboard, tap the \"+\" button in the bottom-right corner (or open the \"Tasks\" tab and tap \"Add Task\").\nSelect the child the task is for.\nEnter a title, description (optional), and reward minutes.\nTap save - the task appears on the child\'s phone right away.</string>
+
+    <string name="guide_title_approval">Approve or Reject Tasks</string>
+    <string name="guide_steps_approval">Open the \"Approval\" tab - the number badge shows how many tasks are pending.\nTap a task to see its details and the evidence your child submitted.\nTap \"Approve\" or \"Reject\", optionally adding a note.\nOnce approved, the reward minutes are added to the child\'s access balance automatically.</string>
+
+    <string name="guide_title_chat">Chat with Your Child</string>
+    <string name="guide_steps_chat">Open the \"Chat\" tab.\nChoose \"All Children\" for the family group chat, or a specific child\'s name for a private chat.\nType a message or tap the camera/gallery icon to send a photo, then tap send.\nLong-press a message to react with an emoji or reply to it.</string>
+
+    <string name="guide_title_lock">Lock Your Child\'s Device</string>
+    <string name="guide_steps_lock">Open the \"Device Lock\" tab.\nTurn on the toggle next to the child\'s name you want to lock.\nThe child\'s device immediately shows the TimeCraft lock screen until turned off again.\nMake sure the \"Display over other apps\" permission was enabled on your child\'s phone when the app was first installed, so this feature can work.</string>
+
+    <string name="guide_title_backup">Create a Data Backup</string>
+    <string name="guide_steps_backup">Tap the cloud (download) icon in the top-right corner.\nSet a backup password (at least 8 characters) and repeat it to confirm.\nAn encrypted JSON file is saved to the location you choose on your phone.\nKeep this password safe - without it, the backup file can\'t be opened again (the server never stores it).</string>
+
+    <string name="guide_title_change_password">Change Your Password</string>
+    <string name="guide_steps_change_password">Tap the gear (Settings) icon in the top-right corner.\nUnder \"Account\", tap \"Change Password\".\nEnter your current password, then a new one (at least 8 characters).\nOther devices still signed in with the old password are signed out automatically - this device stays signed in.</string>
+
+    <string name="guide_title_delete_child">Delete a Child Profile</string>
+    <string name="guide_steps_delete_child">Tap the gear (Settings) icon.\nFind the child\'s name in the \"Child Profiles\" list.\nTap the red trash icon next to it, then confirm.\nAll of that child\'s tasks, chat history, and evidence photos are permanently deleted too - this can\'t be undone.</string>
+
+    <string name="guide_title_activity_log">View the Activity Log</string>
+    <string name="guide_steps_activity_log">Tap the gear (Settings) icon.\nScroll down to the \"Activity Log\" section.\nSee this family\'s history of actions (logins, device lock/unlock, tasks created/approved, etc.) with timestamps.\nOnly parents can see this log - it\'s transparent, not hidden monitoring of your child.</string>
+
+    <string name="guide_title_theme">Switch Light/Dark Mode</string>
+    <string name="guide_steps_theme">Tap the moon/sun icon in the top-right corner.\nThe app instantly switches between light and dark mode.\nYour choice is remembered automatically for next time.</string>
+
+    <string name="guide_title_language">Change the App Language</string>
+    <string name="guide_steps_language">Tap the \"文A\" (Translate) icon in the top-right corner.\nChoose \"Bahasa Indonesia\" or \"English\".\nThe app briefly reloads with the newly chosen language.</string>
+
     <!-- ParentScreen.kt: Backup -->
     <string name="heading_backup_data">Backup Data</string>
     <string name="desc_backup">Download a copy of your family data (child profiles, tasks, chat history) as an encrypted file to your phone\'s storage. You choose the password yourself - the server does NOT store it.</string>

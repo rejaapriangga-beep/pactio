@@ -233,6 +233,7 @@ fun ParentSettingsDialog(
     var childPendingResetPin by remember { mutableStateOf<UserDto?>(null) }
     var showDeleteAccountDialog by remember { mutableStateOf(false) }
     var showChangePasswordDialog by remember { mutableStateOf(false) }
+    var showGuide by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -253,6 +254,15 @@ fun ParentSettingsDialog(
                     OutlinedButton(onClick = { onDismiss(); onReplayTutorial() }) {
                         Text(stringResource(R.string.action_replay_tutorial))
                     }
+                }
+                Spacer(Modifier.height(8.dp))
+                // Panduan Penggunaan (GuideDialog.kt) - referensi teks lengkap untuk aksi yang
+                // tersebar di banyak tab/dialog, beda dari tur coach-mark di atas yang cuma
+                // menyorot Dashboard. Dibuka DI ATAS dialog Pengaturan ini (bukan menutupnya
+                // dulu), boleh saja karena GuideDialog halaman penuh sendiri, bukan sorotan yang
+                // butuh dialog Pengaturan ini tertutup seperti tur coach-mark.
+                OutlinedButton(onClick = { showGuide = true }) {
+                    Text(stringResource(R.string.action_open_guide))
                 }
 
                 Spacer(Modifier.height(20.dp))
@@ -353,6 +363,10 @@ fun ParentSettingsDialog(
                 onChangePassword(currentPassword, newPassword, { showChangePasswordDialog = false }, onError)
             }
         )
+    }
+
+    if (showGuide) {
+        GuideDialog(onDismiss = { showGuide = false })
     }
 
     val resetPinTarget = childPendingResetPin

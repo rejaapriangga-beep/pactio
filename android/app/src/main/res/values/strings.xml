@@ -113,6 +113,43 @@
     <string name="tutorial_step_incomplete_tasks">Pantau tugas yang belum selesai untuk tiap anak di kartu ini, langsung dari Dashboard.</string>
     <string name="tutorial_step_create_task">Tekan tombol ini untuk membuat tugas baru untuk anak.</string>
 
+    <!-- GuideDialog.kt: Panduan Penggunaan - referensi teks lengkap, beda dari tur coach-mark
+         di atas (yang cuma menyorot 4 elemen Dashboard). Dibuka dari Pengaturan. -->
+    <string name="action_open_guide">Panduan Penggunaan</string>
+
+    <string name="guide_title_add_child">Tambah Profil Anak</string>
+    <string name="guide_steps_add_child">Buka tab \"Kunci Perangkat\" (ikon gembok di menu bawah).\nTekan tombol \"+ Tambah Anak\".\nIsi nama anak dan PIN 4-8 digit, lalu simpan.\nKode keluarga otomatis muncul di kartu Dashboard - anak memakainya untuk login pertama kali.</string>
+
+    <string name="guide_title_create_task">Membuat Tugas Baru</string>
+    <string name="guide_steps_create_task">Dari Dashboard, tekan tombol \"+\" di pojok kanan bawah (atau buka tab \"Tugas\" lalu tekan \"Tambah Tugas\").\nPilih anak yang dituju.\nIsi judul, deskripsi (opsional), dan jumlah menit hadiah.\nTekan simpan - tugas langsung muncul di HP anak.</string>
+
+    <string name="guide_title_approval">Menyetujui/Menolak Tugas</string>
+    <string name="guide_steps_approval">Buka tab \"Approval\" - badge angka menunjukkan jumlah tugas yang menunggu.\nTekan salah satu tugas untuk lihat detail dan bukti yang dikirim anak.\nTekan \"Setujui\" atau \"Tolak\", boleh tambahkan catatan.\nKalau disetujui, menit hadiahnya otomatis masuk ke saldo akses anak.</string>
+
+    <string name="guide_title_chat">Chat dengan Anak</string>
+    <string name="guide_steps_chat">Buka tab \"Chat\".\nPilih \"Semua Anak\" untuk chat grup keluarga, atau nama anak tertentu untuk chat pribadi.\nKetik pesan atau tekan ikon kamera/galeri untuk kirim foto, lalu tekan kirim.\nTekan lama (long-press) satu pesan untuk memberi reaksi emoji atau membalasnya.</string>
+
+    <string name="guide_title_lock">Mengunci Perangkat Anak</string>
+    <string name="guide_steps_lock">Buka tab \"Kunci Perangkat\".\nNyalakan toggle di samping nama anak yang mau dikunci.\nPerangkat anak langsung menampilkan layar kunci TimeCraft sampai dimatikan lagi.\nPastikan izin \"Tampil di atas aplikasi lain\" sudah diaktifkan di HP anak saat pertama kali pasang aplikasi, supaya fitur ini bisa berjalan.</string>
+
+    <string name="guide_title_backup">Membuat Backup Data</string>
+    <string name="guide_steps_backup">Tekan ikon awan (unduh) di pojok kanan atas layar.\nBuat kata sandi backup (minimal 8 karakter) dan ulangi untuk konfirmasi.\nFile JSON terenkripsi akan tersimpan ke lokasi yang kamu pilih di HP.\nSimpan kata sandi ini baik-baik - tanpa itu, file backup tidak bisa dibuka lagi (server tidak menyimpannya).</string>
+
+    <string name="guide_title_change_password">Mengubah Kata Sandi</string>
+    <string name="guide_steps_change_password">Tekan ikon gerigi (Pengaturan) di pojok kanan atas.\nDi bagian \"Akun\", tekan \"Ubah Kata Sandi\".\nMasukkan kata sandi saat ini, lalu kata sandi baru (minimal 8 karakter).\nPerangkat lain yang masih login dengan kata sandi lama otomatis keluar - HP ini sendiri tetap login.</string>
+
+    <string name="guide_title_delete_child">Menghapus Profil Anak</string>
+    <string name="guide_steps_delete_child">Tekan ikon gerigi (Pengaturan).\nCari nama anak di daftar \"Profil Anak\".\nTekan ikon tempat sampah merah di sampingnya, lalu konfirmasi.\nSemua tugas, riwayat chat, dan foto bukti milik anak itu ikut terhapus permanen - tindakan ini tidak bisa dibatalkan.</string>
+
+    <string name="guide_title_activity_log">Melihat Log Aktivitas</string>
+    <string name="guide_steps_activity_log">Tekan ikon gerigi (Pengaturan).\nScroll ke bagian \"Log Aktivitas\".\nLihat riwayat tindakan di keluarga ini (login, kunci/buka perangkat, tugas dibuat/disetujui, dst) beserta waktunya.\nLog ini hanya bisa dilihat orang tua - transparan, bukan pengawasan tersembunyi ke anak.</string>
+
+    <string name="guide_title_theme">Mengubah Mode Terang/Gelap</string>
+    <string name="guide_steps_theme">Tekan ikon bulan/matahari di pojok kanan atas layar.\nTampilan langsung berganti mode terang atau gelap.\nPilihan ini otomatis diingat untuk pemakaian berikutnya.</string>
+
+    <string name="guide_title_language">Mengganti Bahasa Aplikasi</string>
+    <string name="guide_steps_language">Tekan ikon \"文A\" (Translate) di pojok kanan atas layar.\nPilih \"Bahasa Indonesia\" atau \"English\".\nAplikasi akan memuat ulang sebentar dengan bahasa yang baru dipilih.</string>
+
     <!-- ParentScreen.kt: Backup -->
     <string name="heading_backup_data">Cadangan Data</string>
     <string name="desc_backup">Unduh salinan data keluarga (profil anak, tugas, riwayat chat) sebagai berkas terenkripsi ke penyimpanan HP kamu. Kata sandinya kamu tentukan sendiri - server TIDAK menyimpannya.</string>
