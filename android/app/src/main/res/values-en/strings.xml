@@ -13,12 +13,9 @@
     <string name="label_pin">PIN</string>
     <string name="action_child_login">Sign In &amp; See Tasks</string>
     <string name="link_parent_access">Parent? Sign in or register here →</string>
-    <string name="title_parent_access">Parent Access</string>
-    <string name="subtitle_parent_access">Manage tasks and track your child\'s progress.</string>
     <string name="option_login_parent_title">Sign In as Parent</string>
-    <string name="option_login_parent_subtitle">Already have a family account</string>
     <string name="option_register_title">Register a New Family</string>
-    <string name="option_register_subtitle">Create your first family account</string>
+    <string name="link_switch_to_register">Don\'t have an account? Register a New Family</string>
     <string name="label_family_name">Family name</string>
     <string name="label_parent_name">Parent\'s name</string>
     <string name="label_email">Email</string>

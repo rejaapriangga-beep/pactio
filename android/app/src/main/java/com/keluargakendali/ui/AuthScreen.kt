@@ -15,14 +15,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Key
-import androidx.compose.material.icons.filled.Login
-import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
@@ -38,8 +33,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -47,8 +40,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.keluargakendali.R
 
-/** Sub-langkah alur masuk orang tua — hanya muncul lewat link kecil di layar landing anak. */
-private enum class ParentStep { NONE, MENU, LOGIN, REGISTER }
+/**
+ * Sub-langkah alur masuk orang tua — hanya muncul lewat link kecil di layar landing anak.
+ * Dulu ada langkah MENU (popup pilihan "Masuk"/"Daftar" terpisah) - dihapus atas permintaan
+ * pengguna, link "Daftar Keluarga Baru" sekarang cukup jadi teks hyperlink di dalam form Masuk
+ * itu sendiri (lihat LoginParentForm), jadi link kecil di landing langsung buka form Masuk.
+ */
+private enum class ParentStep { NONE, LOGIN, REGISTER }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,7 +64,8 @@ fun AuthScreen(
             state = state,
             onLoginChild = onLoginChild,
             onDismissMessage = onDismissMessage,
-            onOpenParentMenu = { parentStep = ParentStep.MENU }
+            // Langsung ke form Masuk (bukan popup pilihan menu lagi) - lihat catatan di ParentStep.
+            onOpenParentLogin = { parentStep = ParentStep.LOGIN }
         )
 
         if (parentStep != ParentStep.NONE) {
@@ -76,12 +75,12 @@ fun AuthScreen(
                 sheetState = sheetState
             ) {
                 when (parentStep) {
-                    ParentStep.MENU -> ParentMenuSheet(
-                        onSelectLogin = { parentStep = ParentStep.LOGIN },
-                        onSelectRegister = { parentStep = ParentStep.REGISTER }
-                    )
                     ParentStep.LOGIN -> ParentSheetForm(state = state, onDismissMessage = onDismissMessage) {
-                        LoginParentForm(loading = state.loading, onSubmit = onLoginParent)
+                        LoginParentForm(
+                            loading = state.loading,
+                            onSubmit = onLoginParent,
+                            onSwitchToRegister = { parentStep = ParentStep.REGISTER }
+                        )
                     }
                     ParentStep.REGISTER -> ParentSheetForm(state = state, onDismissMessage = onDismissMessage) {
                         RegisterParentForm(loading = state.loading, onSubmit = onRegisterParent)
@@ -98,7 +97,7 @@ private fun ChildLandingScreen(
     state: UiState,
     onLoginChild: (familyCode: String, pin: String) -> Unit,
     onDismissMessage: () -> Unit,
-    onOpenParentMenu: () -> Unit
+    onOpenParentLogin: () -> Unit
 ) {
     var familyCode by rememberSaveable { mutableStateOf("") }
     var pin by rememberSaveable { mutableStateOf("") }
@@ -168,70 +167,9 @@ private fun ChildLandingScreen(
             textAlign = TextAlign.Center,
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable(onClick = onOpenParentMenu)
+                .clickable(onClick = onOpenParentLogin)
                 .padding(vertical = 12.dp)
         )
-    }
-}
-
-@Composable
-private fun ParentMenuSheet(onSelectLogin: () -> Unit, onSelectRegister: () -> Unit) {
-    Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-        Column {
-            Text(stringResource(R.string.title_parent_access), style = MaterialTheme.typography.titleLarge)
-            Spacer(Modifier.height(4.dp))
-            Text(
-                stringResource(R.string.subtitle_parent_access),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-
-        ParentMenuOption(
-            icon = Icons.Default.Key,
-            iconContainer = MaterialTheme.colorScheme.primaryContainer,
-            iconTint = MaterialTheme.colorScheme.onPrimaryContainer,
-            title = stringResource(R.string.option_login_parent_title),
-            subtitle = stringResource(R.string.option_login_parent_subtitle),
-            onClick = onSelectLogin
-        )
-        ParentMenuOption(
-            icon = Icons.Default.PersonAdd,
-            iconContainer = MaterialTheme.colorScheme.tertiaryContainer,
-            iconTint = MaterialTheme.colorScheme.onTertiaryContainer,
-            title = stringResource(R.string.option_register_title),
-            subtitle = stringResource(R.string.option_register_subtitle),
-            onClick = onSelectRegister
-        )
-    }
-}
-
-@Composable
-private fun ParentMenuOption(
-    icon: ImageVector,
-    iconContainer: Color,
-    iconTint: Color,
-    title: String,
-    subtitle: String,
-    onClick: () -> Unit
-) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .clickable(onClick = onClick)
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        Box(
-            Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(iconContainer),
-            contentAlignment = Alignment.Center
-        ) { Icon(icon, contentDescription = null, tint = iconTint) }
-        Column(Modifier.weight(1f)) {
-            Text(title, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
     }
 }
 
@@ -273,7 +211,7 @@ private fun RegisterParentForm(loading: Boolean, onSubmit: (String, String, Stri
 }
 
 @Composable
-private fun LoginParentForm(loading: Boolean, onSubmit: (String, String) -> Unit) {
+private fun LoginParentForm(loading: Boolean, onSubmit: (String, String) -> Unit, onSwitchToRegister: () -> Unit) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
 
@@ -292,5 +230,16 @@ private fun LoginParentForm(loading: Boolean, onSubmit: (String, String) -> Unit
             shape = RoundedCornerShape(14.dp),
             modifier = Modifier.fillMaxWidth().height(52.dp)
         ) { Text(stringResource(R.string.action_login), style = MaterialTheme.typography.labelLarge) }
+        // Link teks biasa (bukan popup pilihan terpisah lagi) - lihat catatan di ParentStep.
+        Text(
+            stringResource(R.string.link_switch_to_register),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.primary,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onSwitchToRegister)
+                .padding(vertical = 8.dp)
+        )
     }
 }

@@ -33,11 +33,13 @@ android {
         applicationId = "id.my.timecraft"
         minSdk = 26
         targetSdk = 36
-        // Naik dari 1 -> 2 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 11 -> sekarang 12 - build ini
-        // memperluas tur coach-mark Dashboard (TutorialOverlay.kt) dari 4 jadi 12 langkah:
-        // tiap tab disorot satu-satu (bukan cuma baris tab-nya), ditambah 4 ikon TopAppBar
-        // (bahasa, tema, backup, Pengaturan).
-        versionCode = 12
+        // Naik dari 1 -> 2 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 11 -> 12 -> sekarang 13 - build ini
+        // menghapus popup "Akses Orang Tua" (ModalBottomSheet pilihan menu terpisah) di halaman
+        // login: link kecil di layar landing anak sekarang langsung membuka form Masuk, dan link
+        // "Daftar Keluarga Baru" dipindah jadi teks hyperlink di BAWAH form Masuk itu sendiri
+        // (lihat AuthScreen.kt/LoginParentForm) - satu langkah lebih sedikit untuk orang tua yang
+        // ingin mendaftar.
+        versionCode = 13
         versionName = "0.1.0"
     }
 
