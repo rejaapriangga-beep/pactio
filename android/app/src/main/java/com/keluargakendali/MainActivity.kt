@@ -48,9 +48,12 @@ import com.keluargakendali.ui.AuthScreen
 import com.keluargakendali.ui.BackupIconButton
 import com.keluargakendali.ui.ChildScreen
 import com.keluargakendali.ui.ChildSettingsDialog
+import com.keluargakendali.ui.CoachMarkOverlay
 import com.keluargakendali.ui.ParentScreen
 import com.keluargakendali.ui.ParentSettingsDialog
 import com.keluargakendali.ui.PasswordField
+import com.keluargakendali.ui.TutorialCoachMarkState
+import com.keluargakendali.ui.dashboardTutorialSteps
 import com.keluargakendali.ui.theme.PactioTheme
 import kotlinx.coroutines.delay
 
@@ -106,6 +109,15 @@ private fun PactioApp() {
     // logout benar-benar terjadi (currentUser jadi null).
     var showChildLogoutDialog by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
+    // Tur coach-mark Dashboard orang tua - lihat TutorialOverlay.kt. State-nya dibuat di sini
+    // (bukan di dalam ParentScreen) karena CoachMarkOverlay perlu digambar sejajar dengan
+    // Scaffold (lihat pembungkus Box di bawah), sedangkan tombol pemicu ulangnya ada di
+    // ParentSettingsDialog yang juga dipanggil langsung dari sini.
+    val tutorialState = remember { TutorialCoachMarkState() }
+    // Dihitung di sini (konteks composable, boleh panggil stringResource lewat
+    // dashboardTutorialSteps()) - lambda onReplayTutorial() di bawah BUKAN konteks composable,
+    // jadi tidak boleh memanggil dashboardTutorialSteps() langsung dari dalamnya.
+    val parentTutorialSteps = dashboardTutorialSteps()
     LaunchedEffect(state.currentUser) {
         if (state.currentUser == null) {
             showChildLogoutDialog = false
@@ -125,6 +137,10 @@ private fun PactioApp() {
     }
 
     PactioTheme(darkTheme = darkMode) {
+      // Box pembungkus supaya CoachMarkOverlay (lihat di bawah, setelah Scaffold) berbagi ruang
+      // koordinat root yang SAMA dengan seluruh isi Scaffold (TopAppBar + konten) - itu yang
+      // dipakai Modifier.tutorialTarget/boundsInRoot() untuk menghitung posisi sorotan.
+      Box(Modifier.fillMaxSize()) {
         Scaffold(
             snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
@@ -203,7 +219,8 @@ private fun PactioApp() {
                         onCreateTask = viewModel::createTask,
                         onAddChild = viewModel::addChild,
                         onDismissMessage = viewModel::dismissMessages,
-                        onRefreshChatUnread = viewModel::refreshChatUnread
+                        onRefreshChatUnread = viewModel::refreshChatUnread,
+                        tutorialState = tutorialState
                     )
 
                     else -> ChildScreen(
@@ -223,6 +240,12 @@ private fun PactioApp() {
             }
         }
 
+        // Digambar TERAKHIR (paling atas) di dalam Box pembungkus yang sama dengan Scaffold -
+        // lihat catatan Box di atas & TutorialOverlay.kt.
+        CoachMarkOverlay(tutorialState)
+      }
+        // AlertDialog di bawah ini render di WINDOW terpisah (Dialog Android bawaan), bukan di
+        // dalam Box di atas - urutannya tidak masalah, selalu tampil di atas apa pun.
         if (showChildLogoutDialog) {
             ChildLogoutDialog(
                 loading = state.loading,
@@ -243,6 +266,7 @@ private fun PactioApp() {
                     onChangePassword = { currentPassword, newPassword, onSuccess, onError ->
                         viewModel.changePassword(currentPassword, newPassword, onSuccess, onError)
                     },
+                    onReplayTutorial = { tutorialState.start(parentTutorialSteps) },
                     onDismiss = { showSettings = false }
                 )
                 "child" -> ChildSettingsDialog(state = state, onDismiss = { showSettings = false })

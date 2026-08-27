@@ -95,6 +95,18 @@
     <string name="label_new_password">New password</string>
     <string name="info_password_changed">Password changed successfully. Other signed-in devices have been signed out automatically.</string>
 
+    <!-- TutorialOverlay.kt: parent Dashboard coach-mark tour, shown automatically once the first
+         time a parent sees the Dashboard, replayable from Settings. -->
+    <string name="tutorial_step_counter">Step %1$d of %2$d</string>
+    <string name="action_skip_tutorial">Skip</string>
+    <string name="action_next_tutorial">Next</string>
+    <string name="action_finish_tutorial">Done</string>
+    <string name="action_replay_tutorial">Show Tutorial Again</string>
+    <string name="tutorial_step_family_code">This is your family code. Enter it on your child\'s phone the first time they log in as a child, so their account connects to this family.</string>
+    <string name="tutorial_step_tab_row">The main menu is here: Dashboard, Tasks, Approval (review your child\'s reports), Chat, and Device Lock.</string>
+    <string name="tutorial_step_incomplete_tasks">Track each child\'s unfinished tasks in this card, right from the Dashboard.</string>
+    <string name="tutorial_step_create_task">Tap this button to create a new task for a child.</string>
+
     <!-- ParentScreen.kt: Backup -->
     <string name="heading_backup_data">Backup Data</string>
     <string name="desc_backup">Download a copy of your family data (child profiles, tasks, chat history) as an encrypted file to your phone\'s storage. You choose the password yourself - the server does NOT store it.</string>

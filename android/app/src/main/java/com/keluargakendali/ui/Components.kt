@@ -122,8 +122,8 @@ data class TabItem(val label: String, val icon: ImageVector, val badgeCount: Int
  * tetap sedikit dan muat nyaman.
  */
 @Composable
-fun PactioTabRow(items: List<TabItem>, selectedIndex: Int, onSelect: (Int) -> Unit) {
-    TabRow(selectedTabIndex = selectedIndex) {
+fun PactioTabRow(items: List<TabItem>, selectedIndex: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
+    TabRow(selectedTabIndex = selectedIndex, modifier = modifier) {
         items.forEachIndexed { index, item ->
             Tab(
                 selected = selectedIndex == index,

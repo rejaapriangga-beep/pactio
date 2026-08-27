@@ -94,6 +94,7 @@ import com.keluargakendali.data.EVIDENCE_MIME_EXT
 import com.keluargakendali.data.EvidenceFileDto
 import com.keluargakendali.data.FAMILY_CHAT_THREAD_ID
 import com.keluargakendali.data.PactioApi
+import com.keluargakendali.data.SettingsStore
 import com.keluargakendali.data.TaskDto
 import com.keluargakendali.data.UserDto
 import com.keluargakendali.data.activityActionLabel
@@ -101,6 +102,21 @@ import com.keluargakendali.data.statusLabel
 import com.keluargakendali.ui.theme.pactioExtraColors
 import kotlinx.coroutines.launch
 import java.io.File
+
+/**
+ * Langkah-langkah tur coach-mark Dashboard orang tua (lihat TutorialOverlay.kt) - fungsi
+ * terpisah (bukan langsung di dalam ParentScreen) supaya bisa dipanggil ulang dari MainActivity
+ * saat menyusun aksi "Lihat Tutorial Lagi" di ParentSettingsDialog, tanpa perlu menembus balik
+ * ke dalam ParentScreen. `key` di tiap langkah HARUS cocok dengan Modifier.tutorialTarget yang
+ * dipasang di elemen terkait di bawah.
+ */
+@Composable
+fun dashboardTutorialSteps(): List<TutorialStep> = listOf(
+    TutorialStep("family_code", stringResource(R.string.tutorial_step_family_code)),
+    TutorialStep("tab_row", stringResource(R.string.tutorial_step_tab_row)),
+    TutorialStep("incomplete_tasks", stringResource(R.string.tutorial_step_incomplete_tasks)),
+    TutorialStep("create_task_fab", stringResource(R.string.tutorial_step_create_task))
+)
 
 @Composable
 fun ParentScreen(
@@ -110,7 +126,8 @@ fun ParentScreen(
     onCreateTask: (childId: String, title: String, description: String, rewardMinutes: Int) -> Unit,
     onAddChild: (name: String, pin: String) -> Unit,
     onDismissMessage: () -> Unit,
-    onRefreshChatUnread: () -> Unit
+    onRefreshChatUnread: () -> Unit,
+    tutorialState: TutorialCoachMarkState
 ) {
     var selectedTab by remember { mutableStateOf(0) }
     var showCreateTask by remember { mutableStateOf(false) }
@@ -135,7 +152,12 @@ fun ParentScreen(
             Box(Modifier.padding(16.dp)) { ErrorBanner(it, onDismissMessage) }
         }
 
-        PactioTabRow(items = tabs, selectedIndex = selectedTab, onSelect = { selectedTab = it })
+        PactioTabRow(
+            items = tabs,
+            selectedIndex = selectedTab,
+            onSelect = { selectedTab = it },
+            modifier = Modifier.tutorialTarget("tab_row", tutorialState)
+        )
 
         when (selectedTab) {
             0 -> ParentDashboardTab(
@@ -143,7 +165,8 @@ fun ParentScreen(
                 approvalCount = approvalCount,
                 onCreateTask = { showCreateTask = true },
                 onDecide = onDecide,
-                onSetLock = onSetLock
+                onSetLock = onSetLock,
+                tutorialState = tutorialState
             )
             1 -> ParentTaskListTab(
                 state = state,
@@ -203,6 +226,7 @@ fun ParentSettingsDialog(
     onResetPin: (childId: String, pin: String) -> Unit,
     onDeleteAccount: (password: String, onWrongPassword: (String) -> Unit) -> Unit,
     onChangePassword: (currentPassword: String, newPassword: String, onSuccess: () -> Unit, onError: (String) -> Unit) -> Unit,
+    onReplayTutorial: () -> Unit,
     onDismiss: () -> Unit
 ) {
     var childPendingDelete by remember { mutableStateOf<UserDto?>(null) }
@@ -219,8 +243,16 @@ fun ParentSettingsDialog(
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 Text(stringResource(R.string.heading_account), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
-                OutlinedButton(onClick = { showChangePasswordDialog = true }) {
-                    Text(stringResource(R.string.action_change_password))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { showChangePasswordDialog = true }) {
+                        Text(stringResource(R.string.action_change_password))
+                    }
+                    // Tur coach-mark Dashboard - lihat TutorialOverlay.kt/dashboardTutorialSteps.
+                    // Tombol ini cuma memicu ulang state-nya (di MainActivity), jadi tutup dulu
+                    // dialog Pengaturan ini supaya sorotannya tidak ketutup dialog.
+                    OutlinedButton(onClick = { onDismiss(); onReplayTutorial() }) {
+                        Text(stringResource(R.string.action_replay_tutorial))
+                    }
                 }
 
                 Spacer(Modifier.height(20.dp))
@@ -685,10 +717,25 @@ private fun ParentDashboardTab(
     approvalCount: Int,
     onCreateTask: () -> Unit,
     onDecide: (taskId: String, approved: Boolean, note: String) -> Unit,
-    onSetLock: (childId: String, enabled: Boolean) -> Unit
+    onSetLock: (childId: String, enabled: Boolean) -> Unit,
+    tutorialState: TutorialCoachMarkState
 ) {
     // Pop-up review/follow-up cepat saat kartu ringkasan diklik - lihat DashboardStatCard(onClick).
     var cardModal by remember { mutableStateOf<String?>(null) }
+
+    // Tur coach-mark otomatis SEKALI per perangkat, begitu orang tua pertama kali melihat
+    // Dashboard - lihat SettingsStore.hasSeenParentTutorial & dashboardTutorialSteps di atas.
+    // Ditandai "sudah lihat" LANGSUNG saat mulai (bukan baru setelah selesai/dilewati) supaya
+    // tidak muncul berulang tiap kali pindah tab lalu balik lagi ke Dashboard dalam sesi yang
+    // sama. Bisa diulang manual lewat "Lihat Tutorial Lagi" di Pengaturan.
+    val context = LocalContext.current
+    val tutorialSteps = dashboardTutorialSteps()
+    LaunchedEffect(Unit) {
+        if (!SettingsStore.hasSeenParentTutorial(context)) {
+            SettingsStore.setSeenParentTutorial(context, true)
+            tutorialState.start(tutorialSteps)
+        }
+    }
 
     Box(Modifier.fillMaxSize()) {
         Column(
@@ -710,6 +757,7 @@ private fun ParentDashboardTab(
                                 .clip(RoundedCornerShape(999.dp))
                                 .background(MaterialTheme.colorScheme.primaryContainer)
                                 .padding(horizontal = 12.dp, vertical = 6.dp)
+                                .tutorialTarget("family_code", tutorialState)
                         )
                     }
                     if (state.children.isEmpty()) {
@@ -748,7 +796,9 @@ private fun ParentDashboardTab(
             }
 
             if (state.children.isNotEmpty()) {
-                IncompleteTasksByChildCard(children = state.children, tasks = state.tasks)
+                Box(Modifier.tutorialTarget("incomplete_tasks", tutorialState)) {
+                    IncompleteTasksByChildCard(children = state.children, tasks = state.tasks)
+                }
                 DashboardChatPreviewCard(messages = state.dashboardChatPreview, currentUserId = state.currentUser?.id, children = state.children)
                 // FAB (di bawah) menutupi bagian bawah - beri jarak supaya kartu terakhir tidak tertutup.
                 Spacer(Modifier.height(64.dp))
@@ -758,7 +808,7 @@ private fun ParentDashboardTab(
         if (state.children.isNotEmpty()) {
             FloatingActionButton(
                 onClick = onCreateTask,
-                modifier = Modifier.align(Alignment.BottomEnd).padding(20.dp)
+                modifier = Modifier.align(Alignment.BottomEnd).padding(20.dp).tutorialTarget("create_task_fab", tutorialState)
             ) {
                 Icon(Icons.Default.Add, contentDescription = stringResource(R.string.action_create_task))
             }

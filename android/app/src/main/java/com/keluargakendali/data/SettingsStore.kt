@@ -12,6 +12,7 @@ object SettingsStore {
     private const val PREFS_NAME = "timecraft_settings"
     private const val KEY_LANGUAGE = "language" // "id" atau "en"
     private const val KEY_DARK_MODE = "dark_mode"
+    private const val KEY_SEEN_PARENT_TUTORIAL = "seen_parent_tutorial"
 
     // TIDAK pakai context.applicationContext di sini dengan sengaja - fungsi ini dipanggil dari
     // Application.attachBaseContext() (lewat LocaleHelper), dan pada tahap SEDINI itu
@@ -32,5 +33,12 @@ object SettingsStore {
 
     fun setDarkMode(context: Context, enabled: Boolean) {
         prefs(context).edit().putBoolean(KEY_DARK_MODE, enabled).apply()
+    }
+
+    /** Tur coach-mark Dashboard orang tua (lihat TutorialOverlay.kt) - tampil otomatis sekali per perangkat, bisa diulang manual lewat Pengaturan. */
+    fun hasSeenParentTutorial(context: Context): Boolean = prefs(context).getBoolean(KEY_SEEN_PARENT_TUTORIAL, false)
+
+    fun setSeenParentTutorial(context: Context, seen: Boolean) {
+        prefs(context).edit().putBoolean(KEY_SEEN_PARENT_TUTORIAL, seen).apply()
     }
 }

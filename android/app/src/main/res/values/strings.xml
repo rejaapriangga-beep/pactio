@@ -101,6 +101,18 @@
     <string name="label_new_password">Kata sandi baru</string>
     <string name="info_password_changed">Kata sandi berhasil diubah. Perangkat lain yang masih login otomatis keluar.</string>
 
+    <!-- TutorialOverlay.kt: tur coach-mark Dashboard orang tua, ditampilkan otomatis sekali saat
+         pertama kali orang tua melihat Dashboard, bisa diulang lewat Pengaturan. -->
+    <string name="tutorial_step_counter">Langkah %1$d dari %2$d</string>
+    <string name="action_skip_tutorial">Lewati</string>
+    <string name="action_next_tutorial">Lanjut</string>
+    <string name="action_finish_tutorial">Selesai</string>
+    <string name="action_replay_tutorial">Lihat Tutorial Lagi</string>
+    <string name="tutorial_step_family_code">Ini kode keluarga kamu. Masukkan kode ini di HP anak saat pertama kali login sebagai anak, supaya akunnya terhubung ke keluarga ini.</string>
+    <string name="tutorial_step_tab_row">Menu utama ada di sini: Dashboard, Tugas, Approval (menyetujui laporan anak), Chat, dan Kunci Perangkat.</string>
+    <string name="tutorial_step_incomplete_tasks">Pantau tugas yang belum selesai untuk tiap anak di kartu ini, langsung dari Dashboard.</string>
+    <string name="tutorial_step_create_task">Tekan tombol ini untuk membuat tugas baru untuk anak.</string>
+
     <!-- ParentScreen.kt: Backup -->
     <string name="heading_backup_data">Cadangan Data</string>
     <string name="desc_backup">Unduh salinan data keluarga (profil anak, tugas, riwayat chat) sebagai berkas terenkripsi ke penyimpanan HP kamu. Kata sandinya kamu tentukan sendiri - server TIDAK menyimpannya.</string>

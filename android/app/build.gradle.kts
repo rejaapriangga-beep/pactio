@@ -33,9 +33,10 @@ android {
         applicationId = "id.my.timecraft"
         minSdk = 26
         targetSdk = 36
-        // Naik dari 1 -> 2 -> 5 -> 6 -> 7 -> 8 -> sekarang 9 - build ini menambah fitur "Ubah
-        // Kata Sandi" self-service di Pengaturan.
-        versionCode = 9
+        // Naik dari 1 -> 2 -> 5 -> 6 -> 7 -> 8 -> 9 -> sekarang 10 - build ini menambah tur
+        // coach-mark Dashboard orang tua (lihat TutorialOverlay.kt), tampil otomatis sekali dan
+        // bisa diulang lewat "Lihat Tutorial Lagi" di Pengaturan.
+        versionCode = 10
         versionName = "0.1.0"
     }
 
