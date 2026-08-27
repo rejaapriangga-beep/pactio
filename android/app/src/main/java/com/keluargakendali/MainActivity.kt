@@ -55,6 +55,7 @@ import com.keluargakendali.ui.ParentSettingsDialog
 import com.keluargakendali.ui.PasswordField
 import com.keluargakendali.ui.TutorialCoachMarkState
 import com.keluargakendali.ui.dashboardTutorialSteps
+import com.keluargakendali.ui.tutorialTarget
 import com.keluargakendali.ui.theme.PactioTheme
 import kotlinx.coroutines.delay
 
@@ -155,7 +156,7 @@ private fun PactioApp() {
                             // di TopAppBar dashboard, bukan ditumpuk di dalam Pengaturan, terinspirasi
                             // pola aplikasi lain (mis. DompetDigitalKu) yang menaruh toggle tema di
                             // header. Backup hanya relevan untuk orang tua (butuh token akses penuh).
-                            Box {
+                            Box(Modifier.tutorialTarget("topbar_language", tutorialState)) {
                                 IconButton(onClick = { showLanguageMenu = true }) {
                                     Icon(Icons.Default.Translate, contentDescription = "Ganti bahasa / Switch language")
                                 }
@@ -170,29 +171,37 @@ private fun PactioApp() {
                                     )
                                 }
                             }
-                            IconButton(onClick = {
-                                darkMode = !darkMode
-                                SettingsStore.setDarkMode(context, darkMode)
-                            }) {
+                            IconButton(
+                                onClick = {
+                                    darkMode = !darkMode
+                                    SettingsStore.setDarkMode(context, darkMode)
+                                },
+                                modifier = Modifier.tutorialTarget("topbar_theme", tutorialState)
+                            ) {
                                 Icon(
                                     if (darkMode) Icons.Default.LightMode else Icons.Default.DarkMode,
                                     contentDescription = stringResource(R.string.cd_toggle_dark_mode)
                                 )
                             }
                             if (state.currentUser?.role == "parent" && state.token != null) {
-                                BackupIconButton(token = state.token!!, familyName = state.family?.name)
+                                Box(Modifier.tutorialTarget("topbar_backup", tutorialState)) {
+                                    BackupIconButton(token = state.token!!, familyName = state.family?.name)
+                                }
                             }
                             // Pengaturan dipindah ke sini (bukan tab lagi - lihat ParentScreen/ChildScreen)
                             // supaya tab utama tetap muat satu baris tanpa digulir. Sengaja di sebelah
                             // kiri "Keluar", bukan tombol refresh manual - data sudah disegarkan otomatis
                             // lewat polling berkala (lihat AppViewModel.silentRefresh di bawah).
-                            IconButton(onClick = {
-                                showSettings = true
-                                // Log Aktivitas dimuat sekali tiap dialog Pengaturan dibuka (bukan
-                                // polling) - lihat catatan di AppViewModel.loadActivityLog. Tidak
-                                // berefek untuk akun anak (dialognya beda, lihat ChildSettingsDialog).
-                                if (state.currentUser?.role == "parent") viewModel.loadActivityLog()
-                            }) {
+                            IconButton(
+                                onClick = {
+                                    showSettings = true
+                                    // Log Aktivitas dimuat sekali tiap dialog Pengaturan dibuka (bukan
+                                    // polling) - lihat catatan di AppViewModel.loadActivityLog. Tidak
+                                    // berefek untuk akun anak (dialognya beda, lihat ChildSettingsDialog).
+                                    if (state.currentUser?.role == "parent") viewModel.loadActivityLog()
+                                },
+                                modifier = Modifier.tutorialTarget("topbar_settings", tutorialState)
+                            ) {
                                 Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.app_settings))
                             }
                             TextButton(onClick = {

@@ -103,9 +103,17 @@
     <string name="action_finish_tutorial">Done</string>
     <string name="action_replay_tutorial">Show Tutorial Again</string>
     <string name="tutorial_step_family_code">This is your family code. Enter it on your child\'s phone the first time they log in as a child, so their account connects to this family.</string>
-    <string name="tutorial_step_tab_row">The main menu is here: Dashboard, Tasks, Approval (review your child\'s reports), Chat, and Device Lock.</string>
+    <string name="tutorial_step_tab_dashboard">Dashboard tab - a quick family overview: family code, stats, and unfinished tasks.</string>
+    <string name="tutorial_step_tab_tasks">Tasks tab - see the full task list and create new tasks from here.</string>
+    <string name="tutorial_step_tab_approval">Approval tab - approve or reject tasks your child submitted, with their evidence.</string>
+    <string name="tutorial_step_tab_chat">Chat tab - send messages/photos to all children at once, or privately to one child.</string>
+    <string name="tutorial_step_tab_lock">Device Lock tab - lock/unlock your child\'s phone, and add new child profiles here.</string>
     <string name="tutorial_step_incomplete_tasks">Track each child\'s unfinished tasks in this card, right from the Dashboard.</string>
     <string name="tutorial_step_create_task">Tap this button to create a new task for a child.</string>
+    <string name="tutorial_step_topbar_language">Switch the app language between Bahasa Indonesia and English.</string>
+    <string name="tutorial_step_topbar_theme">Toggle light/dark mode any time.</string>
+    <string name="tutorial_step_topbar_backup">Create an encrypted family data backup, saved right to your phone.</string>
+    <string name="tutorial_step_topbar_settings">Open Settings - change your password, delete a child profile, view the activity log, enable uninstall protection, and open the full Usage Guide.</string>
 
     <!-- GuideDialog.kt: Usage Guide - full text reference, different from the coach-mark tour
          above (which only highlights 4 Dashboard elements). Opened from Settings. -->

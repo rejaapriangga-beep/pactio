@@ -113,9 +113,17 @@ import java.io.File
 @Composable
 fun dashboardTutorialSteps(): List<TutorialStep> = listOf(
     TutorialStep("family_code", stringResource(R.string.tutorial_step_family_code)),
-    TutorialStep("tab_row", stringResource(R.string.tutorial_step_tab_row)),
+    TutorialStep("tab_dashboard", stringResource(R.string.tutorial_step_tab_dashboard)),
+    TutorialStep("tab_tasks", stringResource(R.string.tutorial_step_tab_tasks)),
+    TutorialStep("tab_approval", stringResource(R.string.tutorial_step_tab_approval)),
+    TutorialStep("tab_chat", stringResource(R.string.tutorial_step_tab_chat)),
+    TutorialStep("tab_lock", stringResource(R.string.tutorial_step_tab_lock)),
     TutorialStep("incomplete_tasks", stringResource(R.string.tutorial_step_incomplete_tasks)),
-    TutorialStep("create_task_fab", stringResource(R.string.tutorial_step_create_task))
+    TutorialStep("create_task_fab", stringResource(R.string.tutorial_step_create_task)),
+    TutorialStep("topbar_language", stringResource(R.string.tutorial_step_topbar_language)),
+    TutorialStep("topbar_theme", stringResource(R.string.tutorial_step_topbar_theme)),
+    TutorialStep("topbar_backup", stringResource(R.string.tutorial_step_topbar_backup)),
+    TutorialStep("topbar_settings", stringResource(R.string.tutorial_step_topbar_settings))
 )
 
 @Composable
@@ -156,7 +164,8 @@ fun ParentScreen(
             items = tabs,
             selectedIndex = selectedTab,
             onSelect = { selectedTab = it },
-            modifier = Modifier.tutorialTarget("tab_row", tutorialState)
+            tutorialState = tutorialState,
+            tutorialKeys = listOf("tab_dashboard", "tab_tasks", "tab_approval", "tab_chat", "tab_lock")
         )
 
         when (selectedTab) {

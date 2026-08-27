@@ -122,12 +122,26 @@ data class TabItem(val label: String, val icon: ImageVector, val badgeCount: Int
  * tetap sedikit dan muat nyaman.
  */
 @Composable
-fun PactioTabRow(items: List<TabItem>, selectedIndex: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
+fun PactioTabRow(
+    items: List<TabItem>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+    // Opsional - dipakai ParentScreen untuk menyorot tab SATU PER SATU di tur coach-mark (lihat
+    // TutorialOverlay.kt/dashboardTutorialSteps). tutorialKeys[i] jadi target tab ke-i kalau ada;
+    // ChildScreen tidak memberi ini, jadi tidak ada tab yang ditandai (default null, no-op).
+    tutorialState: TutorialCoachMarkState? = null,
+    tutorialKeys: List<String>? = null
+) {
     TabRow(selectedTabIndex = selectedIndex, modifier = modifier) {
         items.forEachIndexed { index, item ->
+            val tabModifier = if (tutorialState != null && tutorialKeys != null && index < tutorialKeys.size) {
+                Modifier.tutorialTarget(tutorialKeys[index], tutorialState)
+            } else Modifier
             Tab(
                 selected = selectedIndex == index,
                 onClick = { onSelect(index) },
+                modifier = tabModifier,
                 text = { Text(item.label, style = MaterialTheme.typography.labelSmall) },
                 icon = {
                     if (item.badgeCount > 0) {

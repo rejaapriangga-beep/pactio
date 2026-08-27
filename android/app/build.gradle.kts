@@ -33,11 +33,11 @@ android {
         applicationId = "id.my.timecraft"
         minSdk = 26
         targetSdk = 36
-        // Naik dari 1 -> 2 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> sekarang 11 - build ini menambah
-        // halaman "Panduan Penggunaan" (GuideDialog.kt) di Pengaturan: referensi teks lengkap
-        // untuk tambah/hapus anak, approval, chat, buat tugas, kunci, backup, ubah kata sandi,
-        // log aktivitas, ganti tema, dan ganti bahasa.
-        versionCode = 11
+        // Naik dari 1 -> 2 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 11 -> sekarang 12 - build ini
+        // memperluas tur coach-mark Dashboard (TutorialOverlay.kt) dari 4 jadi 12 langkah:
+        // tiap tab disorot satu-satu (bukan cuma baris tab-nya), ditambah 4 ikon TopAppBar
+        // (bahasa, tema, backup, Pengaturan).
+        versionCode = 12
         versionName = "0.1.0"
     }
 

@@ -109,9 +109,17 @@
     <string name="action_finish_tutorial">Selesai</string>
     <string name="action_replay_tutorial">Lihat Tutorial Lagi</string>
     <string name="tutorial_step_family_code">Ini kode keluarga kamu. Masukkan kode ini di HP anak saat pertama kali login sebagai anak, supaya akunnya terhubung ke keluarga ini.</string>
-    <string name="tutorial_step_tab_row">Menu utama ada di sini: Dashboard, Tugas, Approval (menyetujui laporan anak), Chat, dan Kunci Perangkat.</string>
+    <string name="tutorial_step_tab_dashboard">Tab Dashboard - ringkasan cepat keluarga: kode keluarga, statistik, dan tugas yang belum selesai.</string>
+    <string name="tutorial_step_tab_tasks">Tab Tugas - lihat semua daftar tugas dan buat tugas baru dari sini.</string>
+    <string name="tutorial_step_tab_approval">Tab Approval - setujui atau tolak tugas yang sudah dikirim anak, lengkap dengan buktinya.</string>
+    <string name="tutorial_step_tab_chat">Tab Chat - kirim pesan/foto ke semua anak sekaligus, atau ke satu anak secara pribadi.</string>
+    <string name="tutorial_step_tab_lock">Tab Kunci Perangkat - kunci/buka HP anak, dan tambah profil anak baru di sini.</string>
     <string name="tutorial_step_incomplete_tasks">Pantau tugas yang belum selesai untuk tiap anak di kartu ini, langsung dari Dashboard.</string>
     <string name="tutorial_step_create_task">Tekan tombol ini untuk membuat tugas baru untuk anak.</string>
+    <string name="tutorial_step_topbar_language">Ganti bahasa aplikasi antara Bahasa Indonesia dan English.</string>
+    <string name="tutorial_step_topbar_theme">Beralih mode terang/gelap kapan saja.</string>
+    <string name="tutorial_step_topbar_backup">Buat cadangan data keluarga terenkripsi, tersimpan langsung di HP kamu.</string>
+    <string name="tutorial_step_topbar_settings">Buka Pengaturan - ubah kata sandi, hapus profil anak, lihat log aktivitas, aktifkan proteksi anti-uninstall, dan buka Panduan Penggunaan lengkap.</string>
 
     <!-- GuideDialog.kt: Panduan Penggunaan - referensi teks lengkap, beda dari tur coach-mark
          di atas (yang cuma menyorot 4 elemen Dashboard). Dibuka dari Pengaturan. -->
