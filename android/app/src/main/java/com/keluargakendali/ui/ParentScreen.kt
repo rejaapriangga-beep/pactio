@@ -168,6 +168,26 @@ fun ParentScreen(
             tutorialKeys = listOf("tab_dashboard", "tab_tasks", "tab_approval", "tab_chat", "tab_lock")
         )
 
+        // Tur coach-mark dulu cuma menyorot ikon tab tanpa benar-benar berpindah halaman - jadi
+        // saat langkah "Tab Approval"/"Tab Chat"/dst tampil, layar di baliknya tetap Dashboard.
+        // Sekarang tiap langkah yang elemennya cuma ada di satu tab tertentu otomatis memindahkan
+        // selectedTab juga, supaya halaman yang disorot benar-benar terlihat hidup di baliknya.
+        // Langkah topbar (bahasa/tema/backup/pengaturan) sengaja tidak dipetakan di sini - ikon-
+        // ikon itu ada di TopAppBar, di luar konten tab manapun, jadi tab terakhir dibiarkan saja.
+        val tutorialStepKey = tutorialState.currentStep?.key
+        LaunchedEffect(tutorialStepKey, tutorialState.visible) {
+            if (!tutorialState.visible) return@LaunchedEffect
+            val targetTab = when (tutorialStepKey) {
+                "tab_dashboard", "family_code", "incomplete_tasks", "create_task_fab" -> 0
+                "tab_tasks" -> 1
+                "tab_approval" -> 2
+                "tab_chat" -> 3
+                "tab_lock" -> 4
+                else -> null
+            }
+            if (targetTab != null) selectedTab = targetTab
+        }
+
         when (selectedTab) {
             0 -> ParentDashboardTab(
                 state = state,
