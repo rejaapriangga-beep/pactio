@@ -48,3 +48,6 @@ Lihat [`BUILD_ANDROID.md`](BUILD_ANDROID.md).
 - API produksi wajib HTTPS (`https://api.patio.my.id`) — tidak ada cleartext HTTP.
 - Tidak ada kontrol perangkat agresif sampai tahap ini secara eksplisit direncanakan dan
   disetujui.
+
+
+<!-- Security scan triggered at 2026-08-31 17:17:37 -->
